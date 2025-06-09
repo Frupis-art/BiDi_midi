@@ -1,3 +1,4 @@
+
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -13,9 +14,9 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
-// Обновленные регулярные выражения для упрощенного формата
-const NOTE_REGEX = /^([CDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
-const PAUSE_REGEX = /^P(\(([\d.]+)\))?$/;
+// Обновленные регулярные выражения для упрощенного формата (регистронезависимые)
+const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
+const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
 
 export const parseNoteSequence = (sequence: string): ParsedNote[] => {
   const notes: ParsedNote[] = [];
@@ -35,7 +36,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
     } else if (char === ')') {
       inBrackets = false;
       currentElement += char;
-    } else if (!inBrackets && /[CDEFGABP]/.test(char) && currentElement) {
+    } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
       // Начинается новая нота или пауза
       elements.push(currentElement.trim());
       currentElement = char;
@@ -91,7 +92,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
           parsedNote.isError = true;
           parsedNote.errorMessage = `Неверная длительность: ${durationStr}`;
         } else {
-          parsedNote.note = noteName + (accidental || '');
+          parsedNote.note = noteName.toUpperCase() + (accidental || '');
           parsedNote.octave = octave;
           parsedNote.duration = duration;
           parsedNote.endTime = currentTime + duration;
@@ -110,6 +111,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
 };
 
 let synth: Tone.Synth | null = null;
+let activeNotes: string[] = [];
 
 export const initializeAudio = async () => {
   if (!synth) {
@@ -121,29 +123,36 @@ export const initializeAudio = async () => {
   }
 };
 
-export const playSequence = async (notes: ParsedNote[]) => {
+export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
   await initializeAudio();
   
   if (!synth) return;
+
+  // Останавливаем все активные ноты
+  stopSequence();
 
   let currentTime = Tone.now();
   
   notes.forEach((note) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
-      synth!.triggerAttackRelease(noteName, note.duration, currentTime);
+      const adjustedDuration = note.duration / speed;
+      synth!.triggerAttackRelease(noteName, adjustedDuration, currentTime);
+      activeNotes.push(noteName);
     }
-    currentTime += note.duration;
+    currentTime += note.duration / speed;
   });
 };
 
 export const stopSequence = () => {
   if (synth) {
-    synth.triggerRelease();
+    // Останавливаем все ноты
+    synth.releaseAll();
+    activeNotes = [];
   }
 };
 
-export const exportMidi = async (notes: ParsedNote[]) => {
+export const exportMidi = async (notes: ParsedNote[], speed: number = 1) => {
   const midi = new Midi();
   const track = midi.addTrack();
 
@@ -152,13 +161,14 @@ export const exportMidi = async (notes: ParsedNote[]) => {
   notes.forEach((note) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
+      const adjustedDuration = note.duration / speed;
       track.addNote({
         midi: Tone.Frequency(noteName).toMidi(),
         time: currentTime,
-        duration: note.duration
+        duration: adjustedDuration
       });
     }
-    currentTime += note.duration;
+    currentTime += note.duration / speed;
   });
 
   // Создаем и скачиваем файл

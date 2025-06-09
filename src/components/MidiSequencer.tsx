@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
 import { CirclePlay, Save, Search } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
@@ -26,6 +27,7 @@ const MidiSequencer = () => {
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [speed, setSpeed] = useState([1]);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
 
   const handleAnalyze = () => {
@@ -66,13 +68,15 @@ const MidiSequencer = () => {
       setIsPlaying(true);
       setCurrentNoteIndex(-1);
       
-      await playSequence(parsedNotes);
+      await playSequence(parsedNotes, speed[0]);
       
       // Визуальное выделение нот во время воспроизведения
       let currentTime = 0;
       timeoutRefs.current = [];
       
       parsedNotes.forEach((note, index) => {
+        const adjustedDuration = note.duration / speed[0];
+        
         const startTimeout = setTimeout(() => {
           setCurrentNoteIndex(index);
         }, currentTime * 1000);
@@ -83,10 +87,10 @@ const MidiSequencer = () => {
             setIsPlaying(false);
             toast.success('Воспроизведение завершено');
           }
-        }, (currentTime + note.duration) * 1000);
+        }, (currentTime + adjustedDuration) * 1000);
         
         timeoutRefs.current.push(startTimeout, endTimeout);
-        currentTime += note.duration;
+        currentTime += adjustedDuration;
       });
       
     } catch (error) {
@@ -114,7 +118,7 @@ const MidiSequencer = () => {
     }
 
     try {
-      await exportMidi(parsedNotes);
+      await exportMidi(parsedNotes, speed[0]);
       toast.success('MIDI файл сохранен');
     } catch (error) {
       console.error('Export error:', error);
@@ -188,6 +192,20 @@ const MidiSequencer = () => {
               </div>
             </div>
           )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Скорость воспроизведения: {speed[0]}x
+            </label>
+            <Slider
+              value={speed}
+              onValueChange={setSpeed}
+              min={0.5}
+              max={4}
+              step={0.1}
+              className="w-full"
+            />
+          </div>
 
           <div className="flex gap-3 items-center">
             <Button
