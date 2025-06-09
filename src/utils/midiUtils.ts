@@ -1,4 +1,3 @@
-
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -146,8 +145,8 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
 
 export const stopSequence = () => {
   if (synth) {
-    // Останавливаем все ноты
-    synth.releaseAll();
+    // Останавливаем синтезатор принудительно
+    synth.triggerRelease();
     activeNotes = [];
   }
 };
