@@ -1,4 +1,3 @@
-
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -14,20 +13,45 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
-const NOTE_REGEX = /^([CDEFGAB])(#|b)?(\d)(\(([\d.]+)\))$/;
-const PAUSE_REGEX = /^P(\(([\d.]+)\))$/;
+// Обновленные регулярные выражения для упрощенного формата
+const NOTE_REGEX = /^([CDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
+const PAUSE_REGEX = /^P(\(([\d.]+)\))?$/;
 
 export const parseNoteSequence = (sequence: string): ParsedNote[] => {
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Разбиваем последовательность на отдельные элементы
-  const elements = sequence.split(',').map(s => s.trim());
+  // Разбиваем последовательность на отдельные элементы (без запятых)
+  const elements = [];
+  let currentElement = '';
+  let inBrackets = false;
+  
+  for (let i = 0; i < sequence.length; i++) {
+    const char = sequence[i];
+    
+    if (char === '(') {
+      inBrackets = true;
+      currentElement += char;
+    } else if (char === ')') {
+      inBrackets = false;
+      currentElement += char;
+    } else if (!inBrackets && /[CDEFGABP]/.test(char) && currentElement) {
+      // Начинается новая нота или пауза
+      elements.push(currentElement.trim());
+      currentElement = char;
+    } else {
+      currentElement += char;
+    }
+  }
+  
+  if (currentElement) {
+    elements.push(currentElement.trim());
+  }
   
   elements.forEach((element, index) => {
     const originalText = element;
     let parsedNote: ParsedNote = {
-      duration: 1,
+      duration: 1, // Дефолтная длительность 1
       isPause: false,
       startTime: currentTime,
       endTime: currentTime + 1,
@@ -38,10 +62,12 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
     // Проверяем паузу
     const pauseMatch = element.match(PAUSE_REGEX);
     if (pauseMatch) {
-      const duration = parseFloat(pauseMatch[2]);
-      if (isNaN(duration) || duration <= 0) {
+      const durationStr = pauseMatch[2];
+      const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолт 1
+      
+      if (durationStr && (isNaN(duration) || duration <= 0)) {
         parsedNote.isError = true;
-        parsedNote.errorMessage = `Неверная длительность паузы: ${pauseMatch[2]}`;
+        parsedNote.errorMessage = `Неверная длительность паузы: ${durationStr}`;
       } else {
         parsedNote.isPause = true;
         parsedNote.duration = duration;
@@ -52,8 +78,8 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
       const noteMatch = element.match(NOTE_REGEX);
       if (noteMatch) {
         const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
-        const octave = parseInt(octaveStr);
-        const duration = parseFloat(durationStr);
+        const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
+        const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолтная длительность 1
 
         // Проверяем октаву
         if (octave < 0 || octave > 8) {
@@ -61,7 +87,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
           parsedNote.errorMessage = `Неверная октава: ${octave}. Диапазон: 0-8`;
         }
         // Проверяем длительность
-        else if (isNaN(duration) || duration <= 0) {
+        else if (durationStr && (isNaN(duration) || duration <= 0)) {
           parsedNote.isError = true;
           parsedNote.errorMessage = `Неверная длительность: ${durationStr}`;
         } else {

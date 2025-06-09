@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, Pause, Save } from 'lucide-react';
+import { CirclePlay, Save, Search } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 
@@ -20,21 +20,22 @@ interface ParsedNote {
 }
 
 const MidiSequencer = () => {
-  const [sequence, setSequence] = useState('C4(1), D4(0.5), E4(0.5), F4(1), P(0.5), G4(2)');
+  const [sequence, setSequence] = useState('CA3B4(1)G#PD(0.5)');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
-  const [hasPlayedSuccessfully, setHasPlayedSuccessfully] = useState(false);
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
 
-  const validateAndParseSequence = () => {
+  const handleAnalyze = () => {
     try {
       const notes = parseNoteSequence(sequence);
       setParsedNotes(notes);
       
       const hasErrors = notes.some(note => note.isError);
       setHasValidSequence(!hasErrors);
+      setHasAnalyzed(true);
       
       if (hasErrors) {
         toast.error('Обнаружены ошибки в последовательности нот');
@@ -45,6 +46,7 @@ const MidiSequencer = () => {
       console.error('Parse error:', error);
       setParsedNotes([]);
       setHasValidSequence(false);
+      setHasAnalyzed(false);
       toast.error('Ошибка при анализе последовательности');
     }
   };
@@ -56,7 +58,7 @@ const MidiSequencer = () => {
     }
 
     if (!hasValidSequence) {
-      validateAndParseSequence();
+      toast.error('Сначала выполните анализ последовательности');
       return;
     }
 
@@ -79,7 +81,6 @@ const MidiSequencer = () => {
           if (index === parsedNotes.length - 1) {
             setCurrentNoteIndex(-1);
             setIsPlaying(false);
-            setHasPlayedSuccessfully(true);
             toast.success('Воспроизведение завершено');
           }
         }, (currentTime + note.duration) * 1000);
@@ -107,8 +108,8 @@ const MidiSequencer = () => {
   };
 
   const handleSave = async () => {
-    if (!hasPlayedSuccessfully || !hasValidSequence) {
-      toast.error('Сначала успешно воспроизведите последовательность');
+    if (!hasValidSequence) {
+      toast.error('Сначала выполните успешный анализ последовательности');
       return;
     }
 
@@ -149,13 +150,20 @@ const MidiSequencer = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Сбрасываем состояние анализа при изменении последовательности
+    setHasValidSequence(false);
+    setHasAnalyzed(false);
+    setParsedNotes([]);
+  }, [sequence]);
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-center">MIDI Секвенсор</CardTitle>
           <p className="text-sm text-muted-foreground text-center">
-            Формат ввода: C4(1), D#5(0.5), P(1) - где C,D,E,F,G,A,B - ноты, # - диез, 4,5 - октавы (0-8), P - пауза, (1) - длительность
+            Упрощенный формат: CA3B4(1)G#PD(0.5) - ноты C,D,E,F,G,A,B, # - диез, октава по умолчанию 4, P - пауза, время по умолчанию 1с
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -166,11 +174,7 @@ const MidiSequencer = () => {
             <Textarea
               id="sequence"
               value={sequence}
-              onChange={(e) => {
-                setSequence(e.target.value);
-                setHasValidSequence(false);
-                setHasPlayedSuccessfully(false);
-              }}
+              onChange={(e) => setSequence(e.target.value)}
               placeholder="Введите последовательность нот..."
               className="min-h-24 font-mono"
             />
@@ -185,24 +189,31 @@ const MidiSequencer = () => {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            <Button
+              onClick={handleAnalyze}
+              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
+              variant="outline"
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+
             <Button
               onClick={handlePlay}
-              className="flex items-center gap-2"
+              disabled={!hasValidSequence}
+              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant={isPlaying ? "destructive" : "default"}
             >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {isPlaying ? 'Стоп' : 'Плей'}
+              <CirclePlay className="w-5 h-5" />
             </Button>
 
             <Button
               onClick={handleSave}
-              disabled={!hasPlayedSuccessfully}
-              className="flex items-center gap-2"
+              disabled={!hasValidSequence}
+              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant="outline"
             >
-              <Save className="w-4 h-4" />
-              Сохранить
+              <Save className="w-5 h-5" />
             </Button>
           </div>
 
