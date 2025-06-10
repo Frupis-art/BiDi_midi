@@ -358,5 +358,3 @@ const MidiSequencer = () => {
 };
 
 export default MidiSequencer;
-
-}
