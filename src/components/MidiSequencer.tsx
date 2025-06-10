@@ -20,7 +20,7 @@ interface ParsedNote {
 }
 
 const MidiSequencer = () => {
-  const [sequence, setSequence] = useState('CA3B4(1)G#PD(0.5)');
+  const [sequence, setSequence] = useState('DDAABBA(2)GGF#F#EED(4)P(2)AAGGF#F#E(2)AAGGF#F#E(2)P(1.5)DDAABBA(2)GGF#F#EED(4)');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
@@ -358,3 +358,5 @@ const MidiSequencer = () => {
 };
 
 export default MidiSequencer;
+
+}
