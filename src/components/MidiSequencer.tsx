@@ -87,20 +87,27 @@ const MidiSequencer = () => {
         const transposedNote = transposeNote(note.note, semitones);
         let newOctave = note.octave;
         
-        // Проверяем переход через границы октав
+        // Проверяем переход через границы октав с зацикливанием
         if (semitones > 0) {
           if ((note.note === 'G#' && transposedNote === 'A') ||
               (note.note === 'A#' && transposedNote === 'B') ||
               (note.note === 'B' && transposedNote === 'C')) {
             newOctave = newOctave + 1;
+            // Зацикливание: если превышаем 8, переходим к 0
+            if (newOctave > 8) {
+              newOctave = 0;
+            }
           }
         } else if (semitones < 0) {
           if (note.note === 'C' && transposedNote === 'B') {
             newOctave = newOctave - 1;
+            // Зацикливание: если опускаемся ниже 0, переходим к 8
+            if (newOctave < 0) {
+              newOctave = 8;
+            }
           }
         }
         
-        // Разрешаем октавы от -1 до 9 для транспонирования
         let noteText = transposedNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1) noteText += `(${note.duration})`;
