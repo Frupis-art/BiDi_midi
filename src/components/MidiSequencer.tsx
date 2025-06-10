@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -80,7 +79,6 @@ const MidiSequencer = () => {
     }
 
     let newSequence = '';
-    let currentIndex = 0;
     
     for (const note of parsedNotes) {
       if (note.isPause || note.isError) {
@@ -90,32 +88,25 @@ const MidiSequencer = () => {
         let newOctave = note.octave;
         
         // Проверяем переход через границы октав
-        if (semitones > 0 && note.note === 'G#' && transposedNote === 'A') {
-          newOctave = Math.min(8, newOctave + 1);
-        } else if (semitones > 0 && note.note === 'A#' && transposedNote === 'B') {
-          newOctave = Math.min(8, newOctave + 1);
-        } else if (semitones > 0 && note.note === 'B' && transposedNote === 'C') {
-          newOctave = Math.min(8, newOctave + 1);
-        } else if (semitones < 0 && note.note === 'C' && transposedNote === 'B') {
-          newOctave = Math.max(0, newOctave - 1);
+        if (semitones > 0) {
+          if ((note.note === 'G#' && transposedNote === 'A') ||
+              (note.note === 'A#' && transposedNote === 'B') ||
+              (note.note === 'B' && transposedNote === 'C')) {
+            newOctave = newOctave + 1;
+          }
+        } else if (semitones < 0) {
+          if (note.note === 'C' && transposedNote === 'B') {
+            newOctave = newOctave - 1;
+          }
         }
         
-        // Проверяем границы октав
-        if (newOctave > 8) {
-          toast.error('Транспонирование превышает максимальную октаву (8)');
-          return;
-        } else if (newOctave < 0) {
-          toast.error('Транспонирование превышает минимальную октаву (0)');
-          return;
-        }
-        
+        // Разрешаем октавы от -1 до 9 для транспонирования
         let noteText = transposedNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1) noteText += `(${note.duration})`;
         
         newSequence += noteText;
       }
-      currentIndex++;
     }
     
     setSequence(newSequence);

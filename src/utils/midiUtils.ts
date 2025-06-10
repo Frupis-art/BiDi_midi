@@ -15,7 +15,7 @@ interface ParsedNote {
 }
 
 // Обновленные регулярные выражения для упрощенного формата (регистронезависимые)
-const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
+const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(-?\d)?(\(([\d.]+)\))?$/;
 const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
 
 export const parseNoteSequence = (sequence: string): ParsedNote[] => {
@@ -63,7 +63,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
     // Проверяем паузу
     const pauseMatch = element.match(PAUSE_REGEX);
     if (pauseMatch) {
-      const durationStr = pauseMatch[2];
+      const durationStr = pauseMatch[1];
       const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолт 1
       
       if (durationStr && (isNaN(duration) || duration <= 0)) {
@@ -82,7 +82,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
         const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
         const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолтная длительность 1
 
-        // Проверяем октаву
+        // Проверяем октаву - ошибка только для октав вне диапазона 0-8
         if (octave < 0 || octave > 8) {
           parsedNote.isError = true;
           parsedNote.errorMessage = `Неверная октава: ${octave}. Диапазон: 0-8`;
