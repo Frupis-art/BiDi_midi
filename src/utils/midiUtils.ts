@@ -1,3 +1,4 @@
+
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -151,7 +152,7 @@ export const stopSequence = () => {
   }
 };
 
-export const exportMidi = async (notes: ParsedNote[], speed: number = 1) => {
+export const exportMidi = async (notes: ParsedNote[], speed: number = 1, useMobileShare: boolean = false) => {
   const midi = new Midi();
   const track = midi.addTrack();
 
@@ -170,9 +171,31 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1) => {
     currentTime += note.duration / speed;
   });
 
-  // Создаем и скачиваем файл
+  // Создаем файл
   const midiArray = midi.toArray();
   const blob = new Blob([midiArray], { type: 'audio/midi' });
+  
+  if (useMobileShare && 'share' in navigator) {
+    // Используем Web Share API для мобильных устройств
+    try {
+      const file = new File([blob], 'sequence.mid', { type: 'audio/midi' });
+      await navigator.share({
+        files: [file],
+        title: 'MIDI Sequence',
+        text: 'Exported MIDI sequence'
+      });
+    } catch (error) {
+      console.error('Share failed:', error);
+      // Fallback к обычному скачиванию
+      downloadMidiFile(blob);
+    }
+  } else {
+    // Обычное скачивание
+    downloadMidiFile(blob);
+  }
+};
+
+const downloadMidiFile = (blob: Blob) => {
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement('a');
