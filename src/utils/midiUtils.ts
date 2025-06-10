@@ -111,6 +111,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
 
 let synth: Tone.Synth | null = null;
 let activeNotes: string[] = [];
+let scheduledEvents: number[] = []; // Добавляем массив для отслеживания запланированных событий
 
 export const initializeAudio = async () => {
   if (!synth) {
@@ -127,7 +128,7 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
   
   if (!synth) return;
 
-  // Останавливаем все активные ноты
+  // Останавливаем все активные ноты и очищаем очередь
   stopSequence();
 
   let currentTime = Tone.now();
@@ -136,7 +137,13 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
       const adjustedDuration = note.duration / speed;
-      synth!.triggerAttackRelease(noteName, adjustedDuration, currentTime);
+      
+      // Планируем воспроизведение и сохраняем ID события
+      const eventId = Tone.Transport.schedule((time) => {
+        synth!.triggerAttackRelease(noteName, adjustedDuration, time);
+      }, currentTime);
+      
+      scheduledEvents.push(eventId);
       activeNotes.push(noteName);
     }
     currentTime += note.duration / speed;
@@ -148,6 +155,17 @@ export const stopSequence = () => {
     // Останавливаем синтезатор принудительно
     synth.triggerRelease();
     activeNotes = [];
+  }
+  
+  // Очищаем все запланированные события
+  scheduledEvents.forEach(eventId => {
+    Tone.Transport.clear(eventId);
+  });
+  scheduledEvents = [];
+  
+  // Останавливаем транспорт если он запущен
+  if (Tone.Transport.state === 'started') {
+    Tone.Transport.stop();
   }
 };
 
