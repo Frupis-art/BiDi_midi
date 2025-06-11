@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,18 +28,17 @@ const MidiSequencer = () => {
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const [lastAnalyzedSequence, setLastAnalyzedSequence] = useState('');
-  const [lastManualSequence, setLastManualSequence] = useState(''); // Отслеживаем последнее ручное изменение
+  const [lastManualSequence, setLastManualSequence] = useState('');
   const [speed, setSpeed] = useState([1]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Проверяем, нужен ли повторный анализ (только при ручном изменении или импорте)
   const needsAnalysis = sequence !== lastAnalyzedSequence && sequence !== lastManualSequence;
 
   const handleSequenceChange = (value: string) => {
     setSequence(value);
-    setLastManualSequence(value); // Отмечаем как ручное изменение
+    setLastManualSequence(value);
   };
 
   const handleAnalyze = () => {
@@ -71,7 +69,6 @@ const MidiSequencer = () => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const flatToSharp = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
     
-    // Преобразуем бемоли в диезы
     let normalizedNote = note;
     if (note.includes('b')) {
       const flatNote = note.slice(0, 2);
@@ -103,7 +100,6 @@ const MidiSequencer = () => {
         const newNoteIndex = (noteIndex + semitones + 12) % 12;
         const transposedNote = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][newNoteIndex];
         
-        // Правильно вычисляем изменение октавы
         let octaveChange = 0;
         if (semitones > 0 && noteIndex + semitones >= 12) {
           octaveChange = Math.floor((noteIndex + semitones) / 12);
@@ -113,7 +109,6 @@ const MidiSequencer = () => {
         
         let newOctave = note.octave + octaveChange;
         
-        // Зацикливание октав в диапазоне 0-8
         if (newOctave > 8) {
           newOctave = newOctave % 9;
         } else if (newOctave < 0) {
@@ -129,9 +124,8 @@ const MidiSequencer = () => {
     }
     
     setSequence(newSequence);
-    setLastAnalyzedSequence(newSequence); // Обновляем как проанализированную
+    setLastAnalyzedSequence(newSequence);
     
-    // Обновляем parsedNotes для новой последовательности
     const newNotes = parseNoteSequence(newSequence);
     setParsedNotes(newNotes);
     
@@ -170,7 +164,6 @@ const MidiSequencer = () => {
     setLastAnalyzedSequence(newSequence);
     setLastManualSequence(newSequence);
     
-    // Обновляем parsedNotes для новой последовательности
     const newNotes = parseNoteSequence(newSequence);
     setParsedNotes(newNotes);
     
@@ -195,7 +188,6 @@ const MidiSequencer = () => {
       
       await playSequence(parsedNotes, speed[0]);
       
-      // Визуальное выделение нот во время воспроизведения
       let currentTime = 0;
       timeoutRefs.current = [];
       
@@ -231,7 +223,6 @@ const MidiSequencer = () => {
     setIsPlaying(false);
     setCurrentNoteIndex(-1);
     
-    // Очищаем все таймауты
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
     timeoutRefs.current = [];
   };
@@ -274,14 +265,13 @@ const MidiSequencer = () => {
       setHasAnalyzed(false);
       setParsedNotes([]);
       setLastAnalyzedSequence('');
-      setLastManualSequence(importedSequence); // Отмечаем как требующий анализа
+      setLastManualSequence(importedSequence);
       toast.success('MIDI файл успешно импортирован');
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Ошибка при импорте файла: ' + (error as Error).message);
     }
 
-    // Очищаем input для возможности повторного выбора того же файла
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -310,7 +300,6 @@ const MidiSequencer = () => {
 
   useEffect(() => {
     return () => {
-      // Очистка при размонтировании компонента
       stopPlayback();
     };
   }, []);
@@ -501,5 +490,3 @@ const MidiSequencer = () => {
 };
 
 export default MidiSequencer;
-
-}
