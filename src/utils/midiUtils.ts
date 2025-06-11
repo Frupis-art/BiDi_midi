@@ -1,3 +1,4 @@
+
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -111,7 +112,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
 
 let synth: Tone.Synth | null = null;
 let activeNotes: string[] = [];
-let scheduledEvents: number[] = []; // Добавляем массив для отслеживания запланированных событий
+let scheduledEvents: NodeJS.Timeout[] = []; // Исправлен тип для NodeJS
 
 export const initializeAudio = async () => {
   if (!synth) {
@@ -159,14 +160,14 @@ export const stopSequence = () => {
     activeNotes = [];
   }
   
-  // Очищаем все запланированные события (теперь это setTimeout ID)
+  // Очищаем все запланированные события
   scheduledEvents.forEach(timeoutId => {
     clearTimeout(timeoutId);
   });
   scheduledEvents = [];
 };
 
-export const exportMidi = async (notes: ParsedNote[], speed: number = 1, useMobileShare: boolean = false) => {
+export const exportMidi = async (notes: ParsedNote[], speed: number = 1, shareOptions?: { device: boolean; social: boolean; cloud: boolean; mp3: boolean }) => {
   const midi = new Midi();
   const track = midi.addTrack();
 
@@ -185,14 +186,17 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, useMobi
     currentTime += note.duration / speed;
   });
 
-  // Создаем файл
+  // Создаем MIDI файл
   const midiArray = midi.toArray();
-  const blob = new Blob([midiArray], { type: 'audio/midi' });
+  const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
   
-  if (useMobileShare && 'share' in navigator) {
-    // Используем Web Share API для мобильных устройств
+  if (shareOptions?.mp3) {
+    // Конвертируем в MP3 (используем Web Audio API для синтеза)
+    await convertToMp3(notes, speed);
+  } else if (shareOptions?.social && 'share' in navigator) {
+    // Используем Web Share API
     try {
-      const file = new File([blob], 'sequence.mid', { type: 'audio/midi' });
+      const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
       await navigator.share({
         files: [file],
         title: 'MIDI Sequence',
@@ -200,12 +204,11 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, useMobi
       });
     } catch (error) {
       console.error('Share failed:', error);
-      // Fallback к обычному скачиванию
-      downloadMidiFile(blob);
+      downloadMidiFile(midiBlob);
     }
   } else {
-    // Обычное скачивание
-    downloadMidiFile(blob);
+    // Обычное скачивание на устройство
+    downloadMidiFile(midiBlob);
   }
 };
 
@@ -220,6 +223,98 @@ const downloadMidiFile = (blob: Blob) => {
   document.body.removeChild(link);
   
   URL.revokeObjectURL(url);
+};
+
+const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
+  // Создаем аудио контекст для записи
+  const audioContext = new AudioContext();
+  const sampleRate = audioContext.sampleRate;
+  
+  // Вычисляем общую длительность
+  let totalDuration = 0;
+  notes.forEach(note => {
+    totalDuration += note.duration / speed;
+  });
+  
+  // Создаем буфер для записи
+  const bufferLength = Math.ceil(totalDuration * sampleRate);
+  const audioBuffer = audioContext.createBuffer(1, bufferLength, sampleRate);
+  const channelData = audioBuffer.getChannelData(0);
+  
+  // Синтезируем звук для каждой ноты
+  let currentTime = 0;
+  for (const note of notes) {
+    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+      const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
+      const noteDuration = note.duration / speed;
+      const startSample = Math.floor(currentTime * sampleRate);
+      const endSample = Math.floor((currentTime + noteDuration) * sampleRate);
+      
+      // Генерируем синусоидальную волну
+      for (let i = startSample; i < endSample && i < bufferLength; i++) {
+        const t = (i - startSample) / sampleRate;
+        const envelope = Math.exp(-t * 2); // Экспоненциальное затухание
+        channelData[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+      }
+    }
+    currentTime += note.duration / speed;
+  }
+  
+  // Конвертируем в WAV (упрощенно, без MP3 кодека)
+  const wavBlob = audioBufferToWav(audioBuffer);
+  const url = URL.createObjectURL(wavBlob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'sequence.wav';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+  const length = buffer.length;
+  const numberOfChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const bytesPerSample = 2;
+  
+  const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * bytesPerSample);
+  const view = new DataView(arrayBuffer);
+  
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length * numberOfChannels * bytesPerSample, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numberOfChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true);
+  view.setUint16(32, numberOfChannels * bytesPerSample, true);
+  view.setUint16(34, 8 * bytesPerSample, true);
+  writeString(36, 'data');
+  view.setUint32(40, length * numberOfChannels * bytesPerSample, true);
+  
+  // Convert samples
+  let offset = 44;
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
 
 // Добавляем функцию для импорта MIDI файлов

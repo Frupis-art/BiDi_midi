@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
-import { CirclePlay, Save, Search, ArrowUp, ArrowDown, Upload } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { CirclePlay, Save, Search, ArrowUp, ArrowDown, Upload, Download, Share, Cloud, Music } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 
@@ -27,13 +27,20 @@ const MidiSequencer = () => {
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
-  const [lastAnalyzedSequence, setLastAnalyzedSequence] = useState(''); // Отслеживаем последнюю проанализированную последовательность
+  const [lastAnalyzedSequence, setLastAnalyzedSequence] = useState('');
+  const [lastManualSequence, setLastManualSequence] = useState(''); // Отслеживаем последнее ручное изменение
   const [speed, setSpeed] = useState([1]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Проверяем, нужен ли повторный анализ
-  const needsAnalysis = sequence !== lastAnalyzedSequence;
+  // Проверяем, нужен ли повторный анализ (только при ручном изменении или импорте)
+  const needsAnalysis = sequence !== lastAnalyzedSequence && sequence !== lastManualSequence;
+
+  const handleSequenceChange = (value: string) => {
+    setSequence(value);
+    setLastManualSequence(value); // Отмечаем как ручное изменение
+  };
 
   const handleAnalyze = () => {
     try {
@@ -43,7 +50,7 @@ const MidiSequencer = () => {
       const hasErrors = notes.some(note => note.isError);
       setHasValidSequence(!hasErrors);
       setHasAnalyzed(true);
-      setLastAnalyzedSequence(sequence); // Сохраняем проанализированную последовательность
+      setLastAnalyzedSequence(sequence);
       
       if (hasErrors) {
         toast.error('Обнаружены ошибки в последовательности нот');
@@ -91,28 +98,25 @@ const MidiSequencer = () => {
       if (note.isPause || note.isError) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
-        const transposedNote = transposeNote(note.note, semitones);
-        let newOctave = note.octave;
+        const noteIndex = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(note.note);
+        const newNoteIndex = (noteIndex + semitones + 12) % 12;
+        const transposedNote = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][newNoteIndex];
         
-        // Проверяем переход через границы октав с зацикливанием
-        if (semitones > 0) {
-          if ((note.note === 'G#' && transposedNote === 'A') ||
-              (note.note === 'A#' && transposedNote === 'B') ||
-              (note.note === 'B' && transposedNote === 'C')) {
-            newOctave = newOctave + 1;
-            // Зацикливание: если превышаем 8, переходим к 0
-            if (newOctave > 8) {
-              newOctave = 0;
-            }
-          }
-        } else if (semitones < 0) {
-          if (note.note === 'C' && transposedNote === 'B') {
-            newOctave = newOctave - 1;
-            // Зацикливание: если опускаемся ниже 0, переходим к 8
-            if (newOctave < 0) {
-              newOctave = 8;
-            }
-          }
+        // Правильно вычисляем изменение октавы
+        let octaveChange = 0;
+        if (semitones > 0 && noteIndex + semitones >= 12) {
+          octaveChange = Math.floor((noteIndex + semitones) / 12);
+        } else if (semitones < 0 && noteIndex + semitones < 0) {
+          octaveChange = Math.ceil((noteIndex + semitones) / 12);
+        }
+        
+        let newOctave = note.octave + octaveChange;
+        
+        // Зацикливание октав в диапазоне 0-8
+        if (newOctave > 8) {
+          newOctave = newOctave % 9;
+        } else if (newOctave < 0) {
+          newOctave = 9 + (newOctave % 9);
         }
         
         let noteText = transposedNote;
@@ -124,7 +128,7 @@ const MidiSequencer = () => {
     }
     
     setSequence(newSequence);
-    setLastAnalyzedSequence(newSequence); // Обновляем последнюю проанализированную последовательность
+    setLastAnalyzedSequence(newSequence); // Обновляем как проанализированную
     
     // Обновляем parsedNotes для новой последовательности
     const newNotes = parseNoteSequence(newSequence);
@@ -191,25 +195,31 @@ const MidiSequencer = () => {
     timeoutRefs.current = [];
   };
 
-  const handleSave = async () => {
+  const handleSaveOption = async (option: 'device' | 'social' | 'cloud' | 'mp3') => {
     if (!hasValidSequence) {
       toast.error('Сначала выполните успешный анализ последовательности');
       return;
     }
 
     try {
-      // Проверяем, работаем ли мы на мобильном устройстве
-      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const shareOptions = {
+        device: option === 'device',
+        social: option === 'social',
+        cloud: option === 'cloud',
+        mp3: option === 'mp3'
+      };
+
+      await exportMidi(parsedNotes, speed[0], shareOptions);
       
-      if (isMobile) {
-        // На мобильных устройствах всегда используем обычное скачивание
-        await exportMidi(parsedNotes, speed[0], false);
-        toast.success('MIDI файл загружен в папку "Загрузки"');
-      } else {
-        // На десктопе используем обычное скачивание
-        await exportMidi(parsedNotes, speed[0], false);
-        toast.success('MIDI файл сохранен');
-      }
+      const messages = {
+        device: 'MIDI файл сохранен на устройство',
+        social: 'MIDI файл отправлен в соцсети',
+        cloud: 'MIDI файл сохранен в облако',
+        mp3: 'Файл конвертирован в WAV и сохранен'
+      };
+      
+      toast.success(messages[option]);
+      setShowSaveDialog(false);
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Ошибка при сохранении файла');
@@ -232,6 +242,7 @@ const MidiSequencer = () => {
       setHasAnalyzed(false);
       setParsedNotes([]);
       setLastAnalyzedSequence('');
+      setLastManualSequence(importedSequence); // Отмечаем как требующий анализа
       toast.success('MIDI файл успешно импортирован');
     } catch (error) {
       console.error('Import error:', error);
@@ -271,15 +282,6 @@ const MidiSequencer = () => {
       stopPlayback();
     };
   }, []);
-
-  useEffect(() => {
-    // Сбрасываем состояние анализа при изменении последовательности
-    if (hasAnalyzed) {
-      setHasValidSequence(false);
-      setHasAnalyzed(false);
-      setParsedNotes([]);
-    }
-  }, [sequence]);
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
@@ -339,7 +341,7 @@ const MidiSequencer = () => {
               <Textarea
                 id="sequence"
                 value={sequence}
-                onChange={(e) => setSequence(e.target.value)}
+                onChange={(e) => handleSequenceChange(e.target.value)}
                 placeholder="Введите последовательность нот..."
                 className="min-h-24 font-mono flex-1"
               />
@@ -348,7 +350,7 @@ const MidiSequencer = () => {
 
           <div className="p-3 bg-muted rounded-md">
             <p className="text-sm font-medium mb-2">Предварительный просмотр:</p>
-            <div className="font-mono text-sm whitespace-pre-wrap overflow-x-auto max-w-full">
+            <div className="font-mono text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
               {renderSequenceWithHighlights()}
             </div>
           </div>
@@ -386,14 +388,56 @@ const MidiSequencer = () => {
               <CirclePlay className="w-5 h-5" />
             </Button>
 
-            <Button
-              onClick={handleSave}
-              disabled={!hasValidSequence || needsAnalysis}
-              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
-              variant="outline"
-            >
-              <Save className="w-5 h-5" />
-            </Button>
+            <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  disabled={!hasValidSequence || needsAnalysis}
+                  className="flex items-center justify-center w-12 h-12 rounded-full p-0"
+                  variant="outline"
+                >
+                  <Save className="w-5 h-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Выберите способ сохранения</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => handleSaveOption('device')}
+                    className="flex flex-col items-center gap-2 h-20"
+                    variant="outline"
+                  >
+                    <Download className="w-6 h-6" />
+                    <span className="text-sm">На устройство</span>
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveOption('social')}
+                    className="flex flex-col items-center gap-2 h-20"
+                    variant="outline"
+                  >
+                    <Share className="w-6 h-6" />
+                    <span className="text-sm">Поделиться</span>
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveOption('cloud')}
+                    className="flex flex-col items-center gap-2 h-20"
+                    variant="outline"
+                  >
+                    <Cloud className="w-6 h-6" />
+                    <span className="text-sm">В облако</span>
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveOption('mp3')}
+                    className="flex flex-col items-center gap-2 h-20"
+                    variant="outline"
+                  >
+                    <Music className="w-6 h-6" />
+                    <span className="text-sm">Конвертировать в аудио</span>
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {needsAnalysis && hasAnalyzed && (
