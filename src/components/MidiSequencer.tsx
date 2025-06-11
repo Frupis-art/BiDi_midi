@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
-import { CirclePlay, Save, Search, ArrowUp, ArrowDown } from 'lucide-react';
-import { parseNoteSequence, playSequence, stopSequence, exportMidi } from '@/utils/midiUtils';
+import { Input } from '@/components/ui/input';
+import { CirclePlay, Save, Search, ArrowUp, ArrowDown, Upload } from 'lucide-react';
+import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 
 interface ParsedNote {
@@ -26,8 +27,13 @@ const MidiSequencer = () => {
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [lastAnalyzedSequence, setLastAnalyzedSequence] = useState(''); // Отслеживаем последнюю проанализированную последовательность
   const [speed, setSpeed] = useState([1]);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Проверяем, нужен ли повторный анализ
+  const needsAnalysis = sequence !== lastAnalyzedSequence;
 
   const handleAnalyze = () => {
     try {
@@ -37,6 +43,7 @@ const MidiSequencer = () => {
       const hasErrors = notes.some(note => note.isError);
       setHasValidSequence(!hasErrors);
       setHasAnalyzed(true);
+      setLastAnalyzedSequence(sequence); // Сохраняем проанализированную последовательность
       
       if (hasErrors) {
         toast.error('Обнаружены ошибки в последовательности нот');
@@ -73,7 +80,7 @@ const MidiSequencer = () => {
   };
 
   const transposeSequence = (semitones: number) => {
-    if (!hasAnalyzed) {
+    if (!hasValidSequence) {
       toast.error('Сначала выполните анализ последовательности');
       return;
     }
@@ -117,10 +124,11 @@ const MidiSequencer = () => {
     }
     
     setSequence(newSequence);
-    // Сбрасываем состояние анализа для повторного анализа
-    setHasValidSequence(false);
-    setHasAnalyzed(false);
-    setParsedNotes([]);
+    setLastAnalyzedSequence(newSequence); // Обновляем последнюю проанализированную последовательность
+    
+    // Обновляем parsedNotes для новой последовательности
+    const newNotes = parseNoteSequence(newSequence);
+    setParsedNotes(newNotes);
     
     toast.success(`Транспонирование на ${semitones > 0 ? '+' : ''}${semitones} полутонов выполнено`);
   };
@@ -193,18 +201,46 @@ const MidiSequencer = () => {
       // Проверяем, работаем ли мы на мобильном устройстве
       const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      if (isMobile && 'share' in navigator) {
-        // Используем Web Share API для мобильных устройств
-        await exportMidi(parsedNotes, speed[0], true);
-      } else {
-        // Обычное скачивание для десктопа
+      if (isMobile) {
+        // На мобильных устройствах всегда используем обычное скачивание
         await exportMidi(parsedNotes, speed[0], false);
+        toast.success('MIDI файл загружен в папку "Загрузки"');
+      } else {
+        // На десктопе используем обычное скачивание
+        await exportMidi(parsedNotes, speed[0], false);
+        toast.success('MIDI файл сохранен');
       }
-      
-      toast.success('MIDI файл сохранен');
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Ошибка при сохранении файла');
+    }
+  };
+
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.mid') && !file.name.toLowerCase().endsWith('.midi')) {
+      toast.error('Пожалуйста, выберите MIDI файл (.mid или .midi)');
+      return;
+    }
+
+    try {
+      const importedSequence = await importMidi(file);
+      setSequence(importedSequence);
+      setHasValidSequence(false);
+      setHasAnalyzed(false);
+      setParsedNotes([]);
+      setLastAnalyzedSequence('');
+      toast.success('MIDI файл успешно импортирован');
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Ошибка при импорте файла: ' + (error as Error).message);
+    }
+
+    // Очищаем input для возможности повторного выбора того же файла
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -256,14 +292,34 @@ const MidiSequencer = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="sequence" className="text-sm font-medium">
-              Последовательность нот:
-            </label>
+            <div className="flex items-center justify-between">
+              <label htmlFor="sequence" className="text-sm font-medium">
+                Последовательность нот:
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".mid,.midi"
+                  onChange={handleFileImport}
+                  className="hidden"
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                >
+                  <Upload className="w-3 h-3 mr-1" />
+                  Открыть MIDI
+                </Button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence(1)}
-                  disabled={!hasAnalyzed}
+                  disabled={!hasValidSequence}
                   className="w-8 h-8 p-0"
                   variant="outline"
                   title="Транспонировать на полутон вверх"
@@ -272,7 +328,7 @@ const MidiSequencer = () => {
                 </Button>
                 <Button
                   onClick={() => transposeSequence(-1)}
-                  disabled={!hasAnalyzed}
+                  disabled={!hasValidSequence}
                   className="w-8 h-8 p-0"
                   variant="outline"
                   title="Транспонировать на полутон вниз"
@@ -292,7 +348,7 @@ const MidiSequencer = () => {
 
           <div className="p-3 bg-muted rounded-md">
             <p className="text-sm font-medium mb-2">Предварительный просмотр:</p>
-            <div className="font-mono text-sm whitespace-pre-wrap">
+            <div className="font-mono text-sm whitespace-pre-wrap overflow-x-auto max-w-full">
               {renderSequenceWithHighlights()}
             </div>
           </div>
@@ -316,13 +372,14 @@ const MidiSequencer = () => {
               onClick={handleAnalyze}
               className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant="outline"
+              disabled={!needsAnalysis && hasAnalyzed}
             >
               <Search className="w-5 h-5" />
             </Button>
 
             <Button
               onClick={handlePlay}
-              disabled={!hasValidSequence}
+              disabled={!hasValidSequence || needsAnalysis}
               className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant={isPlaying ? "destructive" : "default"}
             >
@@ -331,13 +388,21 @@ const MidiSequencer = () => {
 
             <Button
               onClick={handleSave}
-              disabled={!hasValidSequence}
+              disabled={!hasValidSequence || needsAnalysis}
               className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant="outline"
             >
               <Save className="w-5 h-5" />
             </Button>
           </div>
+
+          {needsAnalysis && hasAnalyzed && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800 font-medium">
+                Последовательность изменена. Требуется повторный анализ.
+              </p>
+            </div>
+          )}
 
           {!hasValidSequence && parsedNotes.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
@@ -358,3 +423,5 @@ const MidiSequencer = () => {
 };
 
 export default MidiSequencer;
+
+}

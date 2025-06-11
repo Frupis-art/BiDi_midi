@@ -131,19 +131,21 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
   // Останавливаем все активные ноты и очищаем очередь
   stopSequence();
 
-  let currentTime = Tone.now();
+  let currentTime = 0;
   
   notes.forEach((note) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
       const adjustedDuration = note.duration / speed;
       
-      // Планируем воспроизведение и сохраняем ID события
-      const eventId = Tone.Transport.schedule((time) => {
-        synth!.triggerAttackRelease(noteName, adjustedDuration, time);
-      }, currentTime);
+      // Используем setTimeout вместо Tone.Transport для более надежного воспроизведения
+      const timeoutId = setTimeout(() => {
+        if (synth) {
+          synth.triggerAttackRelease(noteName, adjustedDuration);
+        }
+      }, currentTime * 1000);
       
-      scheduledEvents.push(eventId);
+      scheduledEvents.push(timeoutId);
       activeNotes.push(noteName);
     }
     currentTime += note.duration / speed;
@@ -157,16 +159,11 @@ export const stopSequence = () => {
     activeNotes = [];
   }
   
-  // Очищаем все запланированные события
-  scheduledEvents.forEach(eventId => {
-    Tone.Transport.clear(eventId);
+  // Очищаем все запланированные события (теперь это setTimeout ID)
+  scheduledEvents.forEach(timeoutId => {
+    clearTimeout(timeoutId);
   });
   scheduledEvents = [];
-  
-  // Останавливаем транспорт если он запущен
-  if (Tone.Transport.state === 'started') {
-    Tone.Transport.stop();
-  }
 };
 
 export const exportMidi = async (notes: ParsedNote[], speed: number = 1, useMobileShare: boolean = false) => {
@@ -223,4 +220,49 @@ const downloadMidiFile = (blob: Blob) => {
   document.body.removeChild(link);
   
   URL.revokeObjectURL(url);
+};
+
+// Добавляем функцию для импорта MIDI файлов
+export const importMidi = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      try {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const midi = new Midi(arrayBuffer);
+        
+        let sequence = '';
+        
+        // Берем первый трек с нотами
+        const track = midi.tracks.find(t => t.notes.length > 0);
+        if (!track) {
+          throw new Error('MIDI файл не содержит нот');
+        }
+        
+        // Преобразуем ноты в наш формат
+        track.notes.forEach((note, index) => {
+          const noteName = note.name.replace(/(\d)/, ''); // Убираем номер октавы
+          const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
+          const duration = Math.round(note.duration * 10) / 10; // Округляем до одного знака
+          
+          let noteText = noteName;
+          if (octave !== 4) noteText += octave;
+          if (duration !== 1) noteText += `(${duration})`;
+          
+          sequence += noteText;
+        });
+        
+        resolve(sequence);
+      } catch (error) {
+        reject(new Error('Ошибка при чтении MIDI файла: ' + error));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Ошибка при чтении файла'));
+    };
+    
+    reader.readAsArrayBuffer(file);
+  });
 };
