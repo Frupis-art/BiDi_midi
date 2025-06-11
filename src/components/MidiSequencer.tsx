@@ -133,28 +133,49 @@ const MidiSequencer = () => {
   };
 
   const adjustTiming = (adjustment: number) => {
-    if (!hasValidSequence) {
-      toast.error('Сначала выполните анализ последовательности');
-      return;
+    if (!hasAnalyzed || parsedNotes.length === 0) {
+      // Если нет анализа, работаем с текстом напрямую
+      adjustTimingInText(adjustment);
+    } else {
+      // Если есть анализ, работаем с parsedNotes
+      adjustTimingInParsedNotes(adjustment);
     }
+  };
 
+  const adjustTimingInText = (adjustment: number) => {
+    const adjustedSequence = sequence.replace(/\(([0-9.]+)\)/g, (match, duration) => {
+      const currentDuration = parseFloat(duration);
+      const newDuration = Math.round((currentDuration + adjustment) * 10) / 10;
+      const finalDuration = Math.max(0.1, newDuration);
+      return `(${finalDuration})`;
+    });
+    
+    setSequence(adjustedSequence);
+    setLastManualSequence(adjustedSequence);
+    
+    const action = adjustment > 0 ? 'увеличено' : 'уменьшено';
+    toast.success(`Время всех нот ${action} на ${Math.abs(adjustment)}с`);
+  };
+
+  const adjustTimingInParsedNotes = (adjustment: number) => {
     let newSequence = '';
     
     for (const note of parsedNotes) {
       if (note.isError) {
         newSequence += note.originalText;
       } else {
-        const newDuration = Math.max(0.1, note.duration + adjustment);
+        const newDuration = Math.round((note.duration + adjustment) * 10) / 10;
+        const finalDuration = Math.max(0.1, newDuration);
         
         if (note.isPause) {
           newSequence += 'P';
-          if (newDuration !== 1) {
-            newSequence += `(${newDuration})`;
+          if (finalDuration !== 1) {
+            newSequence += `(${finalDuration})`;
           }
         } else if (note.note && note.octave !== undefined) {
           let noteText = note.note;
           if (note.octave !== 4) noteText += note.octave;
-          if (newDuration !== 1) noteText += `(${newDuration})`;
+          if (finalDuration !== 1) noteText += `(${finalDuration})`;
           newSequence += noteText;
         }
       }
@@ -360,7 +381,6 @@ const MidiSequencer = () => {
                 </Button>
                 <Button
                   onClick={() => adjustTiming(-0.1)}
-                  disabled={!hasValidSequence}
                   className="w-8 h-8 p-0"
                   variant="outline"
                   title="Уменьшить время всех нот на 0.1с"
@@ -369,7 +389,6 @@ const MidiSequencer = () => {
                 </Button>
                 <Button
                   onClick={() => adjustTiming(0.1)}
-                  disabled={!hasValidSequence}
                   className="w-8 h-8 p-0"
                   variant="outline"
                   title="Увеличить время всех нот на 0.1с"
