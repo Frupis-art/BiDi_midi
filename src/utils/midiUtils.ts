@@ -1,4 +1,3 @@
-
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
@@ -167,7 +166,7 @@ export const stopSequence = () => {
   scheduledEvents = [];
 };
 
-export const exportMidi = async (notes: ParsedNote[], speed: number = 1, shareOptions?: { device: boolean; social: boolean; cloud: boolean; mp3: boolean }) => {
+export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options?: { format: 'midi' | 'mp3' }) => {
   const midi = new Midi();
   const track = midi.addTrack();
 
@@ -186,29 +185,32 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, shareOp
     currentTime += note.duration / speed;
   });
 
-  // Создаем MIDI файл
-  const midiArray = midi.toArray();
-  const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
-  
-  if (shareOptions?.mp3) {
-    // Конвертируем в MP3 (используем Web Audio API для синтеза)
+  if (options?.format === 'mp3') {
+    // Конвертируем в аудио
     await convertToMp3(notes, speed);
-  } else if (shareOptions?.social && 'share' in navigator) {
-    // Используем Web Share API
-    try {
-      const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
-      await navigator.share({
-        files: [file],
-        title: 'MIDI Sequence',
-        text: 'Exported MIDI sequence'
-      });
-    } catch (error) {
-      console.error('Share failed:', error);
+  } else {
+    // Создаем MIDI файл
+    const midiArray = midi.toArray();
+    const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
+    
+    // Используем Web Share API если доступно
+    if ('share' in navigator) {
+      try {
+        const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
+        await navigator.share({
+          files: [file],
+          title: 'MIDI Sequence',
+          text: 'Exported MIDI sequence'
+        });
+      } catch (error) {
+        console.error('Share failed:', error);
+        // Fallback к обычному скачиванию
+        downloadMidiFile(midiBlob);
+      }
+    } else {
+      // Обычное скачивание если Web Share API недоступно
       downloadMidiFile(midiBlob);
     }
-  } else {
-    // Обычное скачивание на устройство
-    downloadMidiFile(midiBlob);
   }
 };
 
@@ -262,16 +264,39 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
   
   // Конвертируем в WAV (упрощенно, без MP3 кодека)
   const wavBlob = audioBufferToWav(audioBuffer);
-  const url = URL.createObjectURL(wavBlob);
   
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'sequence.wav';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  URL.revokeObjectURL(url);
+  // Используем Web Share API если доступно
+  if ('share' in navigator) {
+    try {
+      const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
+      await navigator.share({
+        files: [file],
+        title: 'Audio Sequence',
+        text: 'Exported audio sequence'
+      });
+    } catch (error) {
+      console.error('Share failed:', error);
+      // Fallback к обычному скачиванию
+      const url = URL.createObjectURL(wavBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sequence.wav';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  } else {
+    // Обычное скачивание если Web Share API недоступно
+    const url = URL.createObjectURL(wavBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'sequence.wav';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 };
 
 const audioBufferToWav = (buffer: AudioBuffer): Blob => {

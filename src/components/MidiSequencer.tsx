@@ -195,30 +195,21 @@ const MidiSequencer = () => {
     timeoutRefs.current = [];
   };
 
-  const handleSaveOption = async (option: 'device' | 'social' | 'cloud' | 'mp3') => {
+  const handleSaveOption = async (format: 'midi' | 'mp3') => {
     if (!hasValidSequence) {
       toast.error('Сначала выполните успешный анализ последовательности');
       return;
     }
 
     try {
-      const shareOptions = {
-        device: option === 'device',
-        social: option === 'social',
-        cloud: option === 'cloud',
-        mp3: option === 'mp3'
-      };
-
-      await exportMidi(parsedNotes, speed[0], shareOptions);
+      await exportMidi(parsedNotes, speed[0], { format });
       
       const messages = {
-        device: 'MIDI файл сохранен на устройство',
-        social: 'MIDI файл отправлен в соцсети',
-        cloud: 'MIDI файл сохранен в облако',
-        mp3: 'Файл конвертирован в WAV и сохранен'
+        midi: 'MIDI файл сохранен',
+        mp3: 'Аудио файл сохранен'
       };
       
-      toast.success(messages[option]);
+      toast.success(messages[format]);
       setShowSaveDialog(false);
     } catch (error) {
       console.error('Export error:', error);
@@ -400,32 +391,16 @@ const MidiSequencer = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Выберите способ сохранения</DialogTitle>
+                  <DialogTitle>Выберите формат файла</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4">
                   <Button
-                    onClick={() => handleSaveOption('device')}
+                    onClick={() => handleSaveOption('midi')}
                     className="flex flex-col items-center gap-2 h-20"
                     variant="outline"
                   >
                     <Download className="w-6 h-6" />
-                    <span className="text-sm">На устройство</span>
-                  </Button>
-                  <Button
-                    onClick={() => handleSaveOption('social')}
-                    className="flex flex-col items-center gap-2 h-20"
-                    variant="outline"
-                  >
-                    <Share className="w-6 h-6" />
-                    <span className="text-sm">Поделиться</span>
-                  </Button>
-                  <Button
-                    onClick={() => handleSaveOption('cloud')}
-                    className="flex flex-col items-center gap-2 h-20"
-                    variant="outline"
-                  >
-                    <Cloud className="w-6 h-6" />
-                    <span className="text-sm">В облако</span>
+                    <span className="text-sm">MIDI файл</span>
                   </Button>
                   <Button
                     onClick={() => handleSaveOption('mp3')}
@@ -433,7 +408,7 @@ const MidiSequencer = () => {
                     variant="outline"
                   >
                     <Music className="w-6 h-6" />
-                    <span className="text-sm">Конвертировать в аудио</span>
+                    <span className="text-sm">Аудио файл</span>
                   </Button>
                 </div>
               </DialogContent>
