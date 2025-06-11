@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CirclePlay, Save, Search, ArrowUp, ArrowDown, Upload, Download, Share, Cloud, Music } from 'lucide-react';
+import { CirclePlay, Save, Search, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Share, Cloud, Music } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 
@@ -135,6 +136,46 @@ const MidiSequencer = () => {
     setParsedNotes(newNotes);
     
     toast.success(`Транспонирование на ${semitones > 0 ? '+' : ''}${semitones} полутонов выполнено`);
+  };
+
+  const adjustTiming = (adjustment: number) => {
+    if (!hasValidSequence) {
+      toast.error('Сначала выполните анализ последовательности');
+      return;
+    }
+
+    let newSequence = '';
+    
+    for (const note of parsedNotes) {
+      if (note.isError) {
+        newSequence += note.originalText;
+      } else {
+        const newDuration = Math.max(0.1, note.duration + adjustment);
+        
+        if (note.isPause) {
+          newSequence += 'P';
+          if (newDuration !== 1) {
+            newSequence += `(${newDuration})`;
+          }
+        } else if (note.note && note.octave !== undefined) {
+          let noteText = note.note;
+          if (note.octave !== 4) noteText += note.octave;
+          if (newDuration !== 1) noteText += `(${newDuration})`;
+          newSequence += noteText;
+        }
+      }
+    }
+    
+    setSequence(newSequence);
+    setLastAnalyzedSequence(newSequence);
+    setLastManualSequence(newSequence);
+    
+    // Обновляем parsedNotes для новой последовательности
+    const newNotes = parseNoteSequence(newSequence);
+    setParsedNotes(newNotes);
+    
+    const action = adjustment > 0 ? 'увеличено' : 'уменьшено';
+    toast.success(`Время всех нот ${action} на ${Math.abs(adjustment)}с`);
   };
 
   const handlePlay = async () => {
@@ -328,6 +369,24 @@ const MidiSequencer = () => {
                 >
                   <ArrowDown className="w-4 h-4" />
                 </Button>
+                <Button
+                  onClick={() => adjustTiming(-0.1)}
+                  disabled={!hasValidSequence}
+                  className="w-8 h-8 p-0"
+                  variant="outline"
+                  title="Уменьшить время всех нот на 0.1с"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={() => adjustTiming(0.1)}
+                  disabled={!hasValidSequence}
+                  className="w-8 h-8 p-0"
+                  variant="outline"
+                  title="Увеличить время всех нот на 0.1с"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
               </div>
               <Textarea
                 id="sequence"
@@ -442,3 +501,5 @@ const MidiSequencer = () => {
 };
 
 export default MidiSequencer;
+
+}
