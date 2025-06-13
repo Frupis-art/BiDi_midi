@@ -65,7 +65,7 @@ const MidiSequencer = () => {
     }
   };
 
-  const transposeNote = (note: string, semitones: number): string => {
+  const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const flatToSharp = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
     
@@ -78,10 +78,30 @@ const MidiSequencer = () => {
     }
     
     const noteIndex = notes.indexOf(normalizedNote);
-    if (noteIndex === -1) return note;
+    if (noteIndex === -1) return { note, octave };
     
-    const newIndex = (noteIndex + semitones + 12) % 12;
-    return notes[newIndex];
+    // Вычисляем новый индекс ноты и октаву
+    let newNoteIndex = noteIndex + semitones;
+    let newOctave = octave;
+    
+    // Обрабатываем переход через границы октав
+    while (newNoteIndex < 0) {
+      newNoteIndex += 12;
+      newOctave--;
+    }
+    while (newNoteIndex >= 12) {
+      newNoteIndex -= 12;
+      newOctave++;
+    }
+    
+    // Ограничиваем октавы диапазоном 0-8
+    if (newOctave < 0) newOctave = 0;
+    if (newOctave > 8) newOctave = 8;
+    
+    return {
+      note: notes[newNoteIndex],
+      octave: newOctave
+    };
   };
 
   const transposeSequence = (semitones: number) => {
@@ -96,26 +116,9 @@ const MidiSequencer = () => {
       if (note.isPause || note.isError) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
-        const noteIndex = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].indexOf(note.note);
-        const newNoteIndex = (noteIndex + semitones + 12) % 12;
-        const transposedNote = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][newNoteIndex];
+        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
-        let octaveChange = 0;
-        if (semitones > 0 && noteIndex + semitones >= 12) {
-          octaveChange = Math.floor((noteIndex + semitones) / 12);
-        } else if (semitones < 0 && noteIndex + semitones < 0) {
-          octaveChange = Math.ceil((noteIndex + semitones) / 12);
-        }
-        
-        let newOctave = note.octave + octaveChange;
-        
-        if (newOctave > 8) {
-          newOctave = newOctave % 9;
-        } else if (newOctave < 0) {
-          newOctave = 9 + (newOctave % 9);
-        }
-        
-        let noteText = transposedNote;
+        let noteText = newNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1) noteText += `(${note.duration})`;
         
@@ -143,13 +146,54 @@ const MidiSequencer = () => {
   };
 
   const adjustTimingInText = (adjustment: number) => {
-    const adjustedSequence = sequence.replace(/\(([0-9.]+)\)/g, (match, duration) => {
-      const currentDuration = parseFloat(duration);
-      const newDuration = Math.round((currentDuration + adjustment) * 10) / 10;
-      const finalDuration = Math.max(0.1, newDuration);
-      return `(${finalDuration})`;
+    // Разбираем последовательность на элементы
+    const elements = [];
+    let currentElement = '';
+    let inBrackets = false;
+    
+    for (let i = 0; i < sequence.length; i++) {
+      const char = sequence[i];
+      
+      if (char === '(') {
+        inBrackets = true;
+        currentElement += char;
+      } else if (char === ')') {
+        inBrackets = false;
+        currentElement += char;
+      } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
+        elements.push(currentElement.trim());
+        currentElement = char;
+      } else {
+        currentElement += char;
+      }
+    }
+    
+    if (currentElement) {
+      elements.push(currentElement.trim());
+    }
+
+    // Обрабатываем каждый элемент
+    const adjustedElements = elements.map(element => {
+      const durationMatch = element.match(/\(([\d.]+)\)$/);
+      
+      if (durationMatch) {
+        // У элемента уже есть время в скобках
+        const currentDuration = parseFloat(durationMatch[1]);
+        const newDuration = Math.round((currentDuration + adjustment) * 10) / 10;
+        const finalDuration = Math.max(0.1, newDuration);
+        return element.replace(/\(([\d.]+)\)$/, `(${finalDuration})`);
+      } else {
+        // У элемента нет времени в скобках, считаем что время = 1
+        const newDuration = Math.round((1 + adjustment) * 10) / 10;
+        const finalDuration = Math.max(0.1, newDuration);
+        if (finalDuration !== 1) {
+          return element + `(${finalDuration})`;
+        }
+        return element;
+      }
     });
     
+    const adjustedSequence = adjustedElements.join('');
     setSequence(adjustedSequence);
     setLastManualSequence(adjustedSequence);
     
@@ -329,7 +373,7 @@ const MidiSequencer = () => {
     <div className="w-full max-w-4xl mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-center">MIDI Секвенсор</CardTitle>
+          <CardTitle className="text-center">BiDi MIDI</CardTitle>
           <p className="text-sm text-muted-foreground text-center">
             Упрощенный формат: CA3B4(1)G#PD(0.5) - ноты C,D,E,F,G,A,B, # - диез, октава по умолчанию 4, P - пауза, время по умолчанию 1с
           </p>
@@ -432,7 +476,6 @@ const MidiSequencer = () => {
               onClick={handleAnalyze}
               className="flex items-center justify-center w-12 h-12 rounded-full p-0"
               variant="outline"
-              disabled={!needsAnalysis && hasAnalyzed}
             >
               <Search className="w-5 h-5" />
             </Button>
