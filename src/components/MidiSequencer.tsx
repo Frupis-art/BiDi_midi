@@ -370,21 +370,21 @@ const MidiSequencer = () => {
   }, []);
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6">
+    <div className="w-full max-w-4xl mx-auto p-4 md:p-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-center">BiDi MIDI</CardTitle>
-          <p className="text-sm text-muted-foreground text-center">
+          <CardTitle className="text-center text-xl md:text-2xl">BiDi MIDI</CardTitle>
+          <p className="text-xs md:text-sm text-muted-foreground text-center">
             Упрощенный формат: CA3B4(1)G#PD(0.5) - ноты C,D,E,F,G,A,B, # - диез, октава по умолчанию 4, P - пауза, время по умолчанию 1с
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 md:space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="sequence" className="text-sm font-medium">
+              <label htmlFor="sequence" className="text-xs md:text-sm font-medium">
                 Последовательность нот:
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 md:gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -396,48 +396,49 @@ const MidiSequencer = () => {
                   onClick={() => fileInputRef.current?.click()}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs px-2 py-1 h-7 md:h-9 md:px-3 md:py-2"
                 >
                   <Upload className="w-3 h-3 mr-1" />
-                  Открыть MIDI
+                  <span className="hidden sm:inline">Открыть MIDI</span>
+                  <span className="sm:hidden">MIDI</span>
                 </Button>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1 md:gap-2">
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence(1)}
                   disabled={!hasValidSequence}
-                  className="w-8 h-8 p-0"
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title="Транспонировать на полутон вверх"
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  <ArrowUp className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
                 <Button
                   onClick={() => transposeSequence(-1)}
                   disabled={!hasValidSequence}
-                  className="w-8 h-8 p-0"
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title="Транспонировать на полутон вниз"
                 >
-                  <ArrowDown className="w-4 h-4" />
+                  <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
                 <Button
                   onClick={() => adjustTiming(-0.1)}
-                  className="w-8 h-8 p-0"
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title="Уменьшить время всех нот на 0.1с"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
                 <Button
                   onClick={() => adjustTiming(0.1)}
-                  className="w-8 h-8 p-0"
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title="Увеличить время всех нот на 0.1с"
                 >
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
               <Textarea
@@ -445,20 +446,20 @@ const MidiSequencer = () => {
                 value={sequence}
                 onChange={(e) => handleSequenceChange(e.target.value)}
                 placeholder="Введите последовательность нот..."
-                className="min-h-24 font-mono flex-1"
+                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
             </div>
           </div>
 
-          <div className="p-3 bg-muted rounded-md">
-            <p className="text-sm font-medium mb-2">Предварительный просмотр:</p>
-            <div className="font-mono text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+          <div className="p-2 md:p-3 bg-muted rounded-md">
+            <p className="text-xs md:text-sm font-medium mb-2">Предварительный просмотр:</p>
+            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
               {renderSequenceWithHighlights()}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">
+            <label className="text-xs md:text-sm font-medium">
               Скорость воспроизведения: {speed[0]}x
             </label>
             <Slider
@@ -471,54 +472,54 @@ const MidiSequencer = () => {
             />
           </div>
 
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 md:gap-3 items-center">
             <Button
               onClick={handleAnalyze}
-              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
+              className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
               variant="outline"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4 md:w-5 md:h-5" />
             </Button>
 
             <Button
               onClick={handlePlay}
               disabled={!hasValidSequence || needsAnalysis}
-              className="flex items-center justify-center w-12 h-12 rounded-full p-0"
+              className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
               variant={isPlaying ? "destructive" : "default"}
             >
-              <CirclePlay className="w-5 h-5" />
+              <CirclePlay className="w-4 h-4 md:w-5 md:h-5" />
             </Button>
 
             <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
               <DialogTrigger asChild>
                 <Button
                   disabled={!hasValidSequence || needsAnalysis}
-                  className="flex items-center justify-center w-12 h-12 rounded-full p-0"
+                  className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
                   variant="outline"
                 >
-                  <Save className="w-5 h-5" />
+                  <Save className="w-4 h-4 md:w-5 md:h-5" />
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Выберите формат файла</DialogTitle>
+                  <DialogTitle className="text-base md:text-lg">Выберите формат файла</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
                   <Button
                     onClick={() => handleSaveOption('midi')}
-                    className="flex flex-col items-center gap-2 h-20"
+                    className="flex flex-col items-center gap-2 h-16 md:h-20"
                     variant="outline"
                   >
-                    <Download className="w-6 h-6" />
-                    <span className="text-sm">MIDI файл</span>
+                    <Download className="w-5 h-5 md:w-6 md:h-6" />
+                    <span className="text-xs md:text-sm">MIDI файл</span>
                   </Button>
                   <Button
                     onClick={() => handleSaveOption('mp3')}
-                    className="flex flex-col items-center gap-2 h-20"
+                    className="flex flex-col items-center gap-2 h-16 md:h-20"
                     variant="outline"
                   >
-                    <Music className="w-6 h-6" />
-                    <span className="text-sm">Аудио файл</span>
+                    <Music className="w-5 h-5 md:w-6 md:h-6" />
+                    <span className="text-xs md:text-sm">Аудио файл</span>
                   </Button>
                 </div>
               </DialogContent>
@@ -526,17 +527,17 @@ const MidiSequencer = () => {
           </div>
 
           {needsAnalysis && hasAnalyzed && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800 font-medium">
+            <div className="p-2 md:p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-xs md:text-sm text-yellow-800 font-medium">
                 Последовательность изменена. Требуется повторный анализ.
               </p>
             </div>
           )}
 
           {!hasValidSequence && parsedNotes.length > 0 && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-800 font-medium">Найдены ошибки:</p>
-              <ul className="text-sm text-red-700 mt-1 list-disc list-inside">
+            <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-xs md:text-sm text-red-800 font-medium">Найдены ошибки:</p>
+              <ul className="text-xs md:text-sm text-red-700 mt-1 list-disc list-inside">
                 {parsedNotes
                   .filter(note => note.isError)
                   .map((note, index) => (
