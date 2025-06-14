@@ -13,15 +13,15 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
-// Обновленные регулярные выражения для упрощенного формата (регистронезависимые)
+// Обновленные регулярные выражения для миллисекунд
 const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
 const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
 
-export const parseNoteSequence = (sequence: string): ParsedNote[] => {
+export const parseNoteSequence = (sequence: string, t: (key: string) => string): ParsedNote[] => {
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Разбиваем последовательность на отдельные элементы (без запятых)
+  // Разбиваем последовательность на отдельные элементы
   const elements = [];
   let currentElement = '';
   let inBrackets = false;
@@ -36,7 +36,6 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
       inBrackets = false;
       currentElement += char;
     } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
-      // Начинается новая нота или пауза
       elements.push(currentElement.trim());
       currentElement = char;
     } else {
@@ -51,10 +50,10 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
   elements.forEach((element, index) => {
     const originalText = element;
     let parsedNote: ParsedNote = {
-      duration: 1, // Дефолтная длительность 1
+      duration: 1000, // Дефолтная длительность 1000мс
       isPause: false,
       startTime: currentTime,
-      endTime: currentTime + 1,
+      endTime: currentTime + 1000,
       originalText,
       isError: false
     };
@@ -63,11 +62,11 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
     const pauseMatch = element.match(PAUSE_REGEX);
     if (pauseMatch) {
       const durationStr = pauseMatch[2];
-      const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолт 1
+      const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
       
       if (durationStr && (isNaN(duration) || duration <= 0)) {
         parsedNote.isError = true;
-        parsedNote.errorMessage = `Неверная длительность паузы: ${durationStr}`;
+        parsedNote.errorMessage = `${t('invalidPauseDuration')}: ${durationStr}`;
       } else {
         parsedNote.isPause = true;
         parsedNote.duration = duration;
@@ -79,17 +78,17 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
       if (noteMatch) {
         const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
         const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
-        const duration = durationStr ? parseFloat(durationStr) : 1; // Дефолтная длительность 1
+        const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолтная длительность 1000мс
 
         // Проверяем октаву - только диапазон 0-8
         if (octave < 0 || octave > 8) {
           parsedNote.isError = true;
-          parsedNote.errorMessage = `Неверная октава: ${octave}. Диапазон: 0-8`;
+          parsedNote.errorMessage = `${t('invalidOctave')}: ${octave}. ${t('octaveRange')}`;
         }
         // Проверяем длительность
         else if (durationStr && (isNaN(duration) || duration <= 0)) {
           parsedNote.isError = true;
-          parsedNote.errorMessage = `Неверная длительность: ${durationStr}`;
+          parsedNote.errorMessage = `${t('invalidDuration')}: ${durationStr}`;
         } else {
           parsedNote.note = noteName.toUpperCase() + (accidental || '');
           parsedNote.octave = octave;
@@ -98,7 +97,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
         }
       } else {
         parsedNote.isError = true;
-        parsedNote.errorMessage = `Неверный формат: ${element}`;
+        parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
       }
     }
 
@@ -111,7 +110,7 @@ export const parseNoteSequence = (sequence: string): ParsedNote[] => {
 
 let synth: Tone.Synth | null = null;
 let activeNotes: string[] = [];
-let scheduledEvents: NodeJS.Timeout[] = []; // Исправлен тип для NodeJS
+let scheduledEvents: NodeJS.Timeout[] = [];
 
 export const initializeAudio = async () => {
   if (!synth) {
@@ -128,7 +127,6 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
   
   if (!synth) return;
 
-  // Останавливаем все активные ноты и очищаем очередь
   stopSequence();
 
   let currentTime = 0;
@@ -136,14 +134,13 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
   notes.forEach((note) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
-      const adjustedDuration = note.duration / speed;
+      const adjustedDuration = (note.duration / 1000) / speed; // Конвертируем мс в секунды
       
-      // Используем setTimeout вместо Tone.Transport для более надежного воспроизведения
       const timeoutId = setTimeout(() => {
         if (synth) {
           synth.triggerAttackRelease(noteName, adjustedDuration);
         }
-      }, currentTime * 1000);
+      }, (currentTime / 1000) * 1000); // Конвертируем мс в мс для setTimeout
       
       scheduledEvents.push(timeoutId);
       activeNotes.push(noteName);
@@ -154,12 +151,10 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
 
 export const stopSequence = () => {
   if (synth) {
-    // Останавливаем синтезатор принудительно
     synth.triggerRelease();
     activeNotes = [];
   }
   
-  // Очищаем все запланированные события
   scheduledEvents.forEach(timeoutId => {
     clearTimeout(timeoutId);
   });
@@ -175,10 +170,10 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
   notes.forEach((note) => {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
-      const adjustedDuration = note.duration / speed;
+      const adjustedDuration = (note.duration / 1000) / speed; // Конвертируем мс в секунды
       track.addNote({
         midi: Tone.Frequency(noteName).toMidi(),
-        time: currentTime,
+        time: currentTime / 1000, // Конвертируем мс в секунды
         duration: adjustedDuration
       });
     }
@@ -186,14 +181,11 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
   });
 
   if (options?.format === 'mp3') {
-    // Конвертируем в аудио
     await convertToMp3(notes, speed);
   } else {
-    // Создаем MIDI файл
     const midiArray = midi.toArray();
     const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
     
-    // Используем Web Share API если доступно
     if ('share' in navigator) {
       try {
         const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
@@ -204,11 +196,9 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
         });
       } catch (error) {
         console.error('Share failed:', error);
-        // Fallback к обычному скачиванию
         downloadMidiFile(midiBlob);
       }
     } else {
-      // Обычное скачивание если Web Share API недоступно
       downloadMidiFile(midiBlob);
     }
   }
@@ -228,44 +218,37 @@ const downloadMidiFile = (blob: Blob) => {
 };
 
 const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
-  // Создаем аудио контекст для записи
   const audioContext = new AudioContext();
   const sampleRate = audioContext.sampleRate;
   
-  // Вычисляем общую длительность
   let totalDuration = 0;
   notes.forEach(note => {
-    totalDuration += note.duration / speed;
+    totalDuration += (note.duration / 1000) / speed; // Конвертируем мс в секунды
   });
   
-  // Создаем буфер для записи
   const bufferLength = Math.ceil(totalDuration * sampleRate);
   const audioBuffer = audioContext.createBuffer(1, bufferLength, sampleRate);
   const channelData = audioBuffer.getChannelData(0);
   
-  // Синтезируем звук для каждой ноты
   let currentTime = 0;
   for (const note of notes) {
     if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
-      const noteDuration = note.duration / speed;
-      const startSample = Math.floor(currentTime * sampleRate);
-      const endSample = Math.floor((currentTime + noteDuration) * sampleRate);
+      const noteDuration = (note.duration / 1000) / speed; // Конвертируем мс в секунды
+      const startSample = Math.floor((currentTime / 1000) * sampleRate);
+      const endSample = Math.floor(((currentTime / 1000) + noteDuration) * sampleRate);
       
-      // Генерируем синусоидальную волну
       for (let i = startSample; i < endSample && i < bufferLength; i++) {
         const t = (i - startSample) / sampleRate;
-        const envelope = Math.exp(-t * 2); // Экспоненциальное затухание
+        const envelope = Math.exp(-t * 2);
         channelData[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
       }
     }
     currentTime += note.duration / speed;
   }
   
-  // Конвертируем в WAV (упрощенно, без MP3 кодека)
   const wavBlob = audioBufferToWav(audioBuffer);
   
-  // Используем Web Share API если доступно
   if ('share' in navigator) {
     try {
       const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
@@ -276,7 +259,6 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
       });
     } catch (error) {
       console.error('Share failed:', error);
-      // Fallback к обычному скачиванию
       const url = URL.createObjectURL(wavBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -287,7 +269,6 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
       URL.revokeObjectURL(url);
     }
   } else {
-    // Обычное скачивание если Web Share API недоступно
     const url = URL.createObjectURL(wavBlob);
     const link = document.createElement('a');
     link.href = url;
@@ -308,7 +289,6 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * bytesPerSample);
   const view = new DataView(arrayBuffer);
   
-  // WAV header
   const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
@@ -329,7 +309,6 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   writeString(36, 'data');
   view.setUint32(40, length * numberOfChannels * bytesPerSample, true);
   
-  // Convert samples
   let offset = 44;
   for (let i = 0; i < length; i++) {
     for (let channel = 0; channel < numberOfChannels; channel++) {
@@ -342,7 +321,6 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
 
-// Добавляем функцию для импорта MIDI файлов
 export const importMidi = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -354,21 +332,19 @@ export const importMidi = async (file: File): Promise<string> => {
         
         let sequence = '';
         
-        // Берем первый трек с нотами
         const track = midi.tracks.find(t => t.notes.length > 0);
         if (!track) {
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Преобразуем ноты в наш формат
         track.notes.forEach((note, index) => {
-          const noteName = note.name.replace(/(\d)/, ''); // Убираем номер октавы
+          const noteName = note.name.replace(/(\d)/, '');
           const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-          const duration = Math.round(note.duration * 10) / 10; // Округляем до одного знака
+          const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
           
           let noteText = noteName;
           if (octave !== 4) noteText += octave;
-          if (duration !== 1) noteText += `(${duration})`;
+          if (duration !== 1000) noteText += `(${duration})`;
           
           sequence += noteText;
         });
