@@ -186,7 +186,10 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
     const midiArray = midi.toArray();
     const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
     
-    if ('share' in navigator) {
+    // Проверяем, мобильная ли платформа
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile && 'share' in navigator) {
       try {
         const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
         await navigator.share({
@@ -196,20 +199,20 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
         });
       } catch (error) {
         console.error('Share failed:', error);
-        downloadMidiFile(midiBlob);
+        downloadMidiFile(midiBlob, 'sequence', 'mid');
       }
     } else {
-      downloadMidiFile(midiBlob);
+      downloadMidiFile(midiBlob, 'sequence', 'mid');
     }
   }
 };
 
-const downloadMidiFile = (blob: Blob) => {
+const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
   const url = URL.createObjectURL(blob);
   
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'sequence.mid';
+  link.download = `${baseName}.${extension}`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -249,7 +252,10 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
   
   const wavBlob = audioBufferToWav(audioBuffer);
   
-  if ('share' in navigator) {
+  // Проверяем, мобильная ли платформа
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  if (isMobile && 'share' in navigator) {
     try {
       const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
       await navigator.share({
@@ -259,25 +265,24 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
       });
     } catch (error) {
       console.error('Share failed:', error);
-      const url = URL.createObjectURL(wavBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'sequence.wav';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadAudioFile(wavBlob, 'sequence', 'wav');
     }
   } else {
-    const url = URL.createObjectURL(wavBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'sequence.wav';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadAudioFile(wavBlob, 'sequence', 'wav');
   }
+};
+
+const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${baseName}.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
 };
 
 const audioBufferToWav = (buffer: AudioBuffer): Blob => {
