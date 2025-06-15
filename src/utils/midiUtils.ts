@@ -292,13 +292,13 @@ const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
 };
 
 const generateUniqueFileName = (baseName: string, extension: string): string => {
-  // Генерируем timestamp для уникальности
+  // Генерируем timestamp и случайное число для уникальности
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 1000);
   
-  // Всегда используем формат: baseName(timestamp_random).extension
-  // Это гарантирует правильный порядок даже если браузер добавит свой номер
-  const fileName = `${baseName}(${timestamp}_${random}).${extension}`;
+  // Всегда используем формат: baseName_timestamp_random.extension
+  // Это гарантирует уникальность без конфликтов с браузером
+  const fileName = `${baseName}_${timestamp}_${random}.${extension}`;
   
   return fileName;
 };
