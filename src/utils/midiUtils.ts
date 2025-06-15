@@ -210,7 +210,7 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
 const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
   const url = URL.createObjectURL(blob);
   
-  // Генерируем уникальное имя файла
+  // Генерируем уникальное имя файла с правильным форматом
   const fileName = generateUniqueFileName(baseName, extension);
   
   const link = document.createElement('a');
@@ -278,7 +278,7 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
 const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
   const url = URL.createObjectURL(blob);
   
-  // Генерируем уникальное имя файла
+  // Генерируем уникальное имя файла с правильным форматом
   const fileName = generateUniqueFileName(baseName, extension);
   
   const link = document.createElement('a');
@@ -292,20 +292,13 @@ const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
 };
 
 const generateUniqueFileName = (baseName: string, extension: string): string => {
-  // Проверяем, существует ли файл с таким именем (симулируем через timestamp)
+  // Генерируем timestamp для уникальности
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 1000);
-  const uniqueId = `${timestamp}${random}`;
   
-  // Создаем временную ссылку для проверки, нужно ли добавлять номер
-  let fileName = `${baseName}.${extension}`;
-  let counter = 1;
-  
-  // Простая проверка на уникальность через случайное число
-  // В реальности браузер сам добавит номер, но мы делаем это правильно
-  if (Math.random() > 0.7) { // Симулируем что файл уже существует в 30% случаев
-    fileName = `${baseName}(${counter}).${extension}`;
-  }
+  // Всегда используем формат: baseName(timestamp_random).extension
+  // Это гарантирует правильный порядок даже если браузер добавит свой номер
+  const fileName = `${baseName}(${timestamp}_${random}).${extension}`;
   
   return fileName;
 };
