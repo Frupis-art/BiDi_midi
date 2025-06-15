@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe } from 'lucide-react';
+import { CirclePlay, Save, ArrowUp, ArrowDown, Upload, Download, Music, Globe } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -32,7 +32,6 @@ const MidiSequencer = () => {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Анализ в реальном времени
   const analysisResult = useMemo(() => {
@@ -58,58 +57,6 @@ const MidiSequencer = () => {
     setParsedNotes(analysisResult.notes);
     setHasValidSequence(analysisResult.hasValidSequence);
   }, [analysisResult]);
-
-  const getSelectedText = (): { start: number, end: number, text: string } => {
-    if (!textareaRef.current) return { start: 0, end: sequence.length, text: sequence };
-    
-    const start = textareaRef.current.selectionStart;
-    const end = textareaRef.current.selectionEnd;
-    
-    if (start === end) {
-      return { start: 0, end: sequence.length, text: sequence };
-    }
-    
-    return { start, end, text: sequence.slice(start, end) };
-  };
-
-  const applyModificationToSelection = (modifier: (notes: ParsedNote[]) => string) => {
-    const selection = getSelectedText();
-    
-    if (selection.start === 0 && selection.end === sequence.length) {
-      // Применяем ко всему тексту
-      if (!hasValidSequence) {
-        toast.error(t('playbackError'));
-        return;
-      }
-      const newSequence = modifier(parsedNotes);
-      setSequence(newSequence);
-    } else {
-      // Применяем к выделенному тексту
-      try {
-        const selectedNotes = parseNoteSequence(selection.text, t);
-        const hasErrors = selectedNotes.some(note => note.isError);
-        
-        if (hasErrors) {
-          toast.error('Ошибки в выделенном тексте');
-          return;
-        }
-        
-        const modifiedSelection = modifier(selectedNotes);
-        const newSequence = sequence.slice(0, selection.start) + modifiedSelection + sequence.slice(selection.end);
-        setSequence(newSequence);
-        
-        // Восстанавливаем выделение
-        setTimeout(() => {
-          if (textareaRef.current) {
-            textareaRef.current.setSelectionRange(selection.start, selection.start + modifiedSelection.length);
-            textareaRef.current.focus();
-          }
-        }, 0);
-      } catch (error) {
-        toast.error('Ошибка при обработке выделенного текста');
-      }
-    }
-  };
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -148,98 +95,29 @@ const MidiSequencer = () => {
   };
 
   const transposeSequence = (semitones: number) => {
-    applyModificationToSelection((notes: ParsedNote[]) => {
-      let newSequence = '';
-      
-      for (const note of notes) {
-        if (note.isPause || note.isError) {
-          newSequence += note.originalText;
-        } else if (note.note && note.octave !== undefined) {
-          const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
-          
-          let noteText = newNote;
-          if (newOctave !== 4) noteText += newOctave;
-          if (note.duration !== 1000) noteText += `(${note.duration})`;
-          
-          newSequence += noteText;
-        }
-      }
-      
-      return newSequence;
-    });
+    if (!hasValidSequence) {
+      toast.error(t('playbackError'));
+      return;
+    }
+
+    let newSequence = '';
     
+    for (const note of parsedNotes) {
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
+        
+        let noteText = newNote;
+        if (newOctave !== 4) noteText += newOctave;
+        if (note.duration !== 1000) noteText += `(${note.duration})`;
+        
+        newSequence += noteText;
+      }
+    }
+    
+    setSequence(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones}`);
-  };
-
-  const adjustTiming = (adjustment: number) => {
-    applyModificationToSelection((notes: ParsedNote[]) => {
-      let newSequence = '';
-      
-      for (const note of notes) {
-        if (note.isError) {
-          newSequence += note.originalText;
-        } else {
-          const newDuration = Math.round((note.duration + adjustment) * 10) / 10;
-          const finalDuration = Math.max(100, newDuration);
-          
-          if (note.isPause) {
-            newSequence += 'P';
-            if (finalDuration !== 1000) {
-              newSequence += `(${finalDuration})`;
-            }
-          } else if (note.note && note.octave !== undefined) {
-            let noteText = note.note;
-            if (note.octave !== 4) noteText += note.octave;
-            if (finalDuration !== 1000) noteText += `(${finalDuration})`;
-            newSequence += noteText;
-          }
-        }
-      }
-      
-      return newSequence;
-    });
-    
-    const action = adjustment > 0 ? t('increased') : t('decreased');
-    toast.success(`Время ${action} на ${Math.abs(adjustment)}мс`);
-  };
-
-  const multiplyDuration = (multiplier: number) => {
-    applyModificationToSelection((notes: ParsedNote[]) => {
-      let newSequence = '';
-      
-      for (const note of notes) {
-        if (note.isError) {
-          newSequence += note.originalText;
-        } else {
-          let newDuration = note.duration * multiplier;
-          
-          // Округляем дробные значения до целых
-          if (newDuration < 500) {
-            newDuration = Math.round(newDuration / 100) * 100; // Округляем до сотен
-            if (newDuration < 100) newDuration = 100; // Минимум 100мс
-          } else {
-            newDuration = Math.round(newDuration / 1000) * 1000; // Округляем до секунд
-            if (newDuration < 1000) newDuration = 1000; // Минимум 1000мс
-          }
-          
-          if (note.isPause) {
-            newSequence += 'P';
-            if (newDuration !== 1000) {
-              newSequence += `(${newDuration})`;
-            }
-          } else if (note.note && note.octave !== undefined) {
-            let noteText = note.note;
-            if (note.octave !== 4) noteText += note.octave;
-            if (newDuration !== 1000) noteText += `(${newDuration})`;
-            newSequence += noteText;
-          }
-        }
-      }
-      
-      return newSequence;
-    });
-    
-    toast.success(`Длительность умножена на ${multiplier}`);
   };
 
   const handlePlay = async () => {
@@ -420,6 +298,7 @@ const MidiSequencer = () => {
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence(1)}
+                  disabled={!hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title={t('transposeUp')}
@@ -428,31 +307,15 @@ const MidiSequencer = () => {
                 </Button>
                 <Button
                   onClick={() => transposeSequence(-1)}
+                  disabled={!hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title={t('transposeDown')}
                 >
                   <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
-                <Button
-                  onClick={() => multiplyDuration(0.5)}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
-                  variant="outline"
-                  title="Уменьшить длительность в 2 раза"
-                >
-                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
-                </Button>
-                <Button
-                  onClick={() => multiplyDuration(2)}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
-                  variant="outline"
-                  title="Увеличить длительность в 2 раза"
-                >
-                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
-                </Button>
               </div>
               <Textarea
-                ref={textareaRef}
                 id="sequence"
                 value={sequence}
                 onChange={(e) => setSequence(e.target.value)}
