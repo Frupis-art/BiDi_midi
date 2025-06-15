@@ -186,30 +186,33 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
     const midiArray = midi.toArray();
     const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
     
-    if ('share' in navigator) {
-      try {
-        const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
-        await navigator.share({
-          files: [file],
-          title: 'MIDI Sequence',
-          text: 'Exported MIDI sequence'
-        });
-      } catch (error) {
-        console.error('Share failed:', error);
-        downloadMidiFile(midiBlob);
-      }
-    } else {
-      downloadMidiFile(midiBlob);
-    }
+    // Убираем расшаривание для десктопа, только скачивание
+    downloadFile(midiBlob, 'sequence', 'mid');
   }
 };
 
-const downloadMidiFile = (blob: Blob) => {
+const downloadFile = (blob: Blob, baseName: string, extension: string) => {
   const url = URL.createObjectURL(blob);
   
+  // Генерируем уникальное имя файла
+  let fileName = `${baseName}.${extension}`;
+  let counter = 1;
+  
+  // Проверяем, не существует ли уже файл с таким именем
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'sequence.mid';
+  link.download = fileName;
+  
+  // Если нужно добавить счетчик, делаем это перед расширением
+  const existingLinks = document.querySelectorAll('a[download]');
+  const existingNames = Array.from(existingLinks).map(el => el.getAttribute('download'));
+  
+  while (existingNames.includes(fileName)) {
+    fileName = `${baseName}(${counter}).${extension}`;
+    counter++;
+  }
+  
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -249,35 +252,8 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
   
   const wavBlob = audioBufferToWav(audioBuffer);
   
-  if ('share' in navigator) {
-    try {
-      const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
-      await navigator.share({
-        files: [file],
-        title: 'Audio Sequence',
-        text: 'Exported audio sequence'
-      });
-    } catch (error) {
-      console.error('Share failed:', error);
-      const url = URL.createObjectURL(wavBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'sequence.wav';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-  } else {
-    const url = URL.createObjectURL(wavBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'sequence.wav';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
+  // Убираем расшаривание для десктопа, только скачивание
+  downloadFile(wavBlob, 'sequence', 'wav');
 };
 
 const audioBufferToWav = (buffer: AudioBuffer): Blob => {
