@@ -186,10 +186,14 @@ export const exportMidi = async (notes: ParsedNote[], speed: number = 1, options
     const midiArray = midi.toArray();
     const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
     
-    // Проверяем, мобильная ли платформа
+    // Проверяем различные мобильные платформы включая Telegram
+    const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    if (isMobile && 'share' in navigator) {
+    if (isTelegramWebApp) {
+      // Специальная обработка для Telegram WebApp
+      downloadMidiFile(midiBlob, 'sequence', 'mid');
+    } else if (isMobile && 'share' in navigator) {
       try {
         const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
         await navigator.share({
@@ -216,6 +220,14 @@ const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
+  
+  // Для Telegram WebApp добавляем специальные атрибуты
+  const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
+  if (isTelegramWebApp) {
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  }
+  
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -255,10 +267,14 @@ const convertToMp3 = async (notes: ParsedNote[], speed: number) => {
   
   const wavBlob = audioBufferToWav(audioBuffer);
   
-  // Проверяем, мобильная ли платформа
+  // Проверяем различные мобильные платформы включая Telegram
+  const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   
-  if (isMobile && 'share' in navigator) {
+  if (isTelegramWebApp) {
+    // Специальная обработка для Telegram WebApp
+    downloadAudioFile(wavBlob, 'sequence', 'wav');
+  } else if (isMobile && 'share' in navigator) {
     try {
       const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
       await navigator.share({
@@ -284,6 +300,14 @@ const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
+  
+  // Для Telegram WebApp добавляем специальные атрибуты
+  const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
+  if (isTelegramWebApp) {
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  }
+  
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -296,8 +320,14 @@ const generateUniqueFileName = (baseName: string, extension: string): string => 
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 1000);
   
-  // Всегда используем формат: baseName_timestamp_random.extension
-  // Это гарантирует уникальность без конфликтов с браузером
+  // Для Telegram WebApp используем более простое именование
+  const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
+  if (isTelegramWebApp) {
+    // Используем только timestamp для Telegram
+    return `${baseName}_${timestamp}.${extension}`;
+  }
+  
+  // Для других платформ используем timestamp + random
   const fileName = `${baseName}_${timestamp}_${random}.${extension}`;
   
   return fileName;
