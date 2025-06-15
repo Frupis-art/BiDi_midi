@@ -316,19 +316,20 @@ const downloadAudioFile = (blob: Blob, baseName: string, extension: string) => {
 };
 
 const generateUniqueFileName = (baseName: string, extension: string): string => {
-  // Генерируем timestamp и случайное число для уникальности
+  // Генерируем максимально уникальное имя с несколькими компонентами
   const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 1000);
+  const random1 = Math.floor(Math.random() * 10000);
+  const random2 = Math.floor(Math.random() * 10000);
   
-  // Для Telegram WebApp используем более простое именование
+  // Для Telegram WebApp используем очень уникальное именование
   const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
   if (isTelegramWebApp) {
-    // Используем только timestamp для Telegram
-    return `${baseName}_${timestamp}.${extension}`;
+    // Используем timestamp + два случайных числа для максимальной уникальности
+    return `${baseName}_${timestamp}_${random1}_${random2}.${extension}`;
   }
   
   // Для других платформ используем timestamp + random
-  const fileName = `${baseName}_${timestamp}_${random}.${extension}`;
+  const fileName = `${baseName}_${timestamp}_${random1}.${extension}`;
   
   return fileName;
 };
