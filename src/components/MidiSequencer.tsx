@@ -24,8 +24,8 @@ interface ParsedNote {
 
 const MidiSequencer = () => {
   const { language, toggleLanguage, t } = useLanguage();
-  const [sequence, setSequence] = useState('DDAABBA(2000)GGF#F#EED(4000)P(2000)AAGGF#F#E(2000)AAGGF#F#E(2000)P(1500)DDAABBA(2000)GGF#F#EED(4000)');
-  const [sequence2, setSequence2] = useState('');
+  const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
+  const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
   const [parsedNotes2, setParsedNotes2] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -452,7 +452,7 @@ const MidiSequencer = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="sequence" className="text-xs md:text-sm font-medium">
-                {t('sequenceLabel')}
+                Последовательность 1
               </label>
               <div className="flex items-center gap-1 md:gap-2">
                 <input
@@ -517,7 +517,7 @@ const MidiSequencer = () => {
                 id="sequence"
                 value={sequence}
                 onChange={(e) => setSequence(e.target.value)}
-                placeholder={t('sequenceLabel')}
+                placeholder="Последовательность 1"
                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
             </div>
