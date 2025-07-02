@@ -85,8 +85,9 @@ const MidiSequencer = () => {
       newOctave++;
     }
     
-    if (newOctave < 0) newOctave = 0;
-    if (newOctave > 8) newOctave = 8;
+    // Циклическое переключение октав
+    if (newOctave < 0) newOctave = 8;
+    if (newOctave > 8) newOctave = 0;
     
     return {
       note: notes[newNoteIndex],
