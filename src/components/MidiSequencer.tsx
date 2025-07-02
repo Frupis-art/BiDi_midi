@@ -76,6 +76,9 @@ const MidiSequencer = () => {
     let newNoteIndex = noteIndex + semitones;
     let newOctave = octave;
     
+    console.log(`Транспозиция: ${note}${octave} + ${semitones} полутонов`);
+    console.log(`Исходный индекс ноты: ${noteIndex}, новый индекс: ${newNoteIndex}, октава: ${newOctave}`);
+    
     while (newNoteIndex < 0) {
       newNoteIndex += 12;
       newOctave--;
@@ -85,9 +88,13 @@ const MidiSequencer = () => {
       newOctave++;
     }
     
+    console.log(`После обработки индексов: нота индекс ${newNoteIndex}, октава ${newOctave}`);
+    
     // Циклическое переключение октав
     if (newOctave < 0) newOctave = 8;
     if (newOctave > 8) newOctave = 0;
+    
+    console.log(`Итоговая нота: ${notes[newNoteIndex]}${newOctave}`);
     
     return {
       note: notes[newNoteIndex],
