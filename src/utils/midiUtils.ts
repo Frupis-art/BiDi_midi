@@ -108,7 +108,7 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
   return notes;
 };
 
-let synth: any = null;
+let synthInstances: any[] = [];
 let activeNotes: string[] = [];
 let scheduledEvents: NodeJS.Timeout[] = [];
 
@@ -173,11 +173,11 @@ const createInstrument = (instrument: string) => {
 };
 
 export const initializeAudio = async (instrument: string = 'piano') => {
-  if (synth) {
-    synth.dispose();
-  }
-  
-  synth = createInstrument(instrument);
+  // Очищаем предыдущие инстансы
+  synthInstances.forEach(synth => {
+    if (synth) synth.dispose();
+  });
+  synthInstances = [];
   
   if (Tone.context.state !== 'running') {
     await Tone.start();
@@ -187,9 +187,9 @@ export const initializeAudio = async (instrument: string = 'piano') => {
 export const playSequence = async (notes: ParsedNote[], speed: number = 1, instrument: string = 'piano') => {
   await initializeAudio(instrument);
   
-  if (!synth) return;
-
-  stopSequence();
+  // Создаем новый инструмент для этой последовательности
+  const synth = createInstrument(instrument);
+  synthInstances.push(synth);
 
   let currentTime = 0;
   
@@ -212,10 +212,13 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1, instr
 };
 
 export const stopSequence = () => {
-  if (synth) {
-    synth.triggerRelease();
-    activeNotes = [];
-  }
+  // Останавливаем все инструменты
+  synthInstances.forEach(synth => {
+    if (synth) {
+      synth.triggerRelease();
+    }
+  });
+  activeNotes = [];
   
   scheduledEvents.forEach(timeoutId => {
     clearTimeout(timeoutId);

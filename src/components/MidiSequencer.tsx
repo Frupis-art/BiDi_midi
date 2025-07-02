@@ -25,9 +25,12 @@ interface ParsedNote {
 const MidiSequencer = () => {
   const { language, toggleLanguage, t } = useLanguage();
   const [sequence, setSequence] = useState('DDAABBA(2000)GGF#F#EED(4000)P(2000)AAGGF#F#E(2000)AAGGF#F#E(2000)P(1500)DDAABBA(2000)GGF#F#EED(4000)');
+  const [sequence2, setSequence2] = useState('');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
+  const [parsedNotes2, setParsedNotes2] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
+  const [currentNoteIndex2, setCurrentNoteIndex2] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [speed, setSpeed] = useState([1]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -47,7 +50,7 @@ const MidiSequencer = () => {
     { value: 'guitar', label: 'Гитара' }
   ];
 
-  // Анализ в реальном времени
+  // Анализ в реальном времени для первой последовательности
   const analysisResult = useMemo(() => {
     if (!sequence.trim()) {
       return { notes: [], hasErrors: false, hasValidSequence: false };
@@ -66,11 +69,31 @@ const MidiSequencer = () => {
     }
   }, [sequence, t]);
 
+  // Анализ в реальном времени для второй последовательности
+  const analysisResult2 = useMemo(() => {
+    if (!sequence2.trim()) {
+      return { notes: [], hasErrors: false, hasValidSequence: false };
+    }
+
+    try {
+      const notes = parseNoteSequence(sequence2, t);
+      const hasErrors = notes.some(note => note.isError);
+      return {
+        notes,
+        hasErrors,
+        hasValidSequence: !hasErrors && notes.length > 0
+      };
+    } catch (error) {
+      return { notes: [], hasErrors: true, hasValidSequence: false };
+    }
+  }, [sequence2, t]);
+
   // Обновляем состояние при изменении результата анализа
   useEffect(() => {
     setParsedNotes(analysisResult.notes);
-    setHasValidSequence(analysisResult.hasValidSequence);
-  }, [analysisResult]);
+    setParsedNotes2(analysisResult2.notes);
+    setHasValidSequence(analysisResult.hasValidSequence || analysisResult2.hasValidSequence);
+  }, [analysisResult, analysisResult2]);
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -156,35 +179,87 @@ const MidiSequencer = () => {
     try {
       setIsPlaying(true);
       setCurrentNoteIndex(-1);
+      setCurrentNoteIndex2(-1);
       
-      await playSequence(parsedNotes, speed[0], selectedInstrument);
+      // Воспроизводим обе последовательности одновременно
+      const playPromises = [];
       
-      let currentTime = 0;
+      if (analysisResult.hasValidSequence) {
+        playPromises.push(playSequence(parsedNotes, speed[0], selectedInstrument));
+      }
+      
+      if (analysisResult2.hasValidSequence) {
+        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument));
+      }
+      
+      await Promise.all(playPromises);
+      
       timeoutRefs.current = [];
       
-      parsedNotes.forEach((note, index) => {
-        const adjustedDuration = note.duration / speed[0];
-        
-        const startTimeout = setTimeout(() => {
-          setCurrentNoteIndex(index);
-        }, currentTime);
-        
-        const endTimeout = setTimeout(() => {
-          if (index === parsedNotes.length - 1) {
-            setCurrentNoteIndex(-1);
-            setIsPlaying(false);
-            toast.success(t('playbackCompleted'));
-          }
-        }, currentTime + adjustedDuration);
-        
-        timeoutRefs.current.push(startTimeout, endTimeout);
-        currentTime += adjustedDuration;
-      });
+      // Подсветка для первой последовательности
+      if (analysisResult.hasValidSequence) {
+        let currentTime = 0;
+        parsedNotes.forEach((note, index) => {
+          const adjustedDuration = note.duration / speed[0];
+          
+          const startTimeout = setTimeout(() => {
+            setCurrentNoteIndex(index);
+          }, currentTime);
+          
+          const endTimeout = setTimeout(() => {
+            if (index === parsedNotes.length - 1) {
+              setCurrentNoteIndex(-1);
+            }
+          }, currentTime + adjustedDuration);
+          
+          timeoutRefs.current.push(startTimeout, endTimeout);
+          currentTime += adjustedDuration;
+        });
+      }
+      
+      // Подсветка для второй последовательности
+      if (analysisResult2.hasValidSequence) {
+        let currentTime = 0;
+        parsedNotes2.forEach((note, index) => {
+          const adjustedDuration = note.duration / speed[0];
+          
+          const startTimeout = setTimeout(() => {
+            setCurrentNoteIndex2(index);
+          }, currentTime);
+          
+          const endTimeout = setTimeout(() => {
+            if (index === parsedNotes2.length - 1) {
+              setCurrentNoteIndex2(-1);
+            }
+          }, currentTime + adjustedDuration);
+          
+          timeoutRefs.current.push(startTimeout, endTimeout);
+          currentTime += adjustedDuration;
+        });
+      }
+      
+      // Определяем максимальную длительность для завершения воспроизведения
+      const maxDuration1 = analysisResult.hasValidSequence ? 
+        parsedNotes.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
+      const maxDuration2 = analysisResult2.hasValidSequence ? 
+        parsedNotes2.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
+      
+      const maxDuration = Math.max(maxDuration1, maxDuration2);
+      
+      const finishTimeout = setTimeout(() => {
+        setIsPlaying(false);
+        setCurrentNoteIndex(-1);
+        setCurrentNoteIndex2(-1);
+        toast.success(t('playbackCompleted'));
+      }, maxDuration);
+      
+      timeoutRefs.current.push(finishTimeout);
       
     } catch (error) {
       console.error('Playback error:', error);
       setIsPlaying(false);
       setCurrentNoteIndex(-1);
+      setCurrentNoteIndex2(-1);
       toast.error(t('playbackError'));
     }
   };
@@ -193,6 +268,7 @@ const MidiSequencer = () => {
     stopSequence();
     setIsPlaying(false);
     setCurrentNoteIndex(-1);
+    setCurrentNoteIndex2(-1);
     
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
     timeoutRefs.current = [];
@@ -243,16 +319,16 @@ const MidiSequencer = () => {
     }
   };
 
-  const renderSequenceWithHighlights = () => {
-    if (parsedNotes.length === 0) {
-      return sequence;
+  const renderSequenceWithHighlights = (notes: ParsedNote[], sequenceText: string, currentIndex: number) => {
+    if (notes.length === 0) {
+      return sequenceText;
     }
 
-    return parsedNotes.map((note, index) => {
+    return notes.map((note, index) => {
       let className = '';
       if (note.isError) {
         className = 'bg-red-200 text-red-800';
-      } else if (currentNoteIndex === index) {
+      } else if (currentIndex === index) {
         className = 'bg-green-200 text-green-800';
       }
 
@@ -348,9 +424,53 @@ const MidiSequencer = () => {
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
-            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')}:</p>
+            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
             <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
-              {renderSequenceWithHighlights()}
+              {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor="sequence2" className="text-xs md:text-sm font-medium">
+                Последовательность 2
+              </label>
+            </div>
+            <div className="flex gap-1 md:gap-2">
+              <div className="flex flex-col gap-1">
+                <Button
+                  onClick={() => {}} // Пока пустая функция для второй последовательности
+                  disabled={!analysisResult2.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title={t('transposeUp')}
+                >
+                  <ArrowUp className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
+                <Button
+                  onClick={() => {}} // Пока пустая функция для второй последовательности
+                  disabled={!analysisResult2.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title={t('transposeDown')}
+                >
+                  <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
+              </div>
+              <Textarea
+                id="sequence2"
+                value={sequence2}
+                onChange={(e) => setSequence2(e.target.value)}
+                placeholder="Последовательность 2"
+                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="p-2 md:p-3 bg-muted rounded-md">
+            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
+            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+              {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
           </div>
 
@@ -434,9 +554,22 @@ const MidiSequencer = () => {
 
           {analysisResult.hasErrors && (
             <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')}:</p>
+              <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 1:</p>
               <ul className="text-xs md:text-sm text-red-700 mt-1 list-disc list-inside">
                 {parsedNotes
+                  .filter(note => note.isError)
+                  .map((note, index) => (
+                    <li key={index}>{note.errorMessage}</li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
+          {analysisResult2.hasErrors && (
+            <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 2:</p>
+              <ul className="text-xs md:text-sm text-red-700 mt-1 list-disc list-inside">
+                {parsedNotes2
                   .filter(note => note.isError)
                   .map((note, index) => (
                     <li key={index}>{note.errorMessage}</li>
