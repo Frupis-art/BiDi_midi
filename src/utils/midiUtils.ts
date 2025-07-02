@@ -108,22 +108,84 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
   return notes;
 };
 
-let synth: Tone.Synth | null = null;
+let synth: any = null;
 let activeNotes: string[] = [];
 let scheduledEvents: NodeJS.Timeout[] = [];
 
-export const initializeAudio = async () => {
-  if (!synth) {
-    synth = new Tone.Synth().toDestination();
+const createInstrument = (instrument: string) => {
+  switch (instrument) {
+    case 'piano':
+      return new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.1, decay: 0.3, sustain: 0.7, release: 1 }
+      }).toDestination();
+    
+    case 'clarinet':
+    case 'oboe':
+      return new Tone.FMSynth({
+        modulationIndex: 12,
+        harmonicity: 2,
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.2 }
+      }).toDestination();
+    
+    case 'trumpet':
+      return new Tone.FMSynth({
+        modulationIndex: 8,
+        harmonicity: 1.5,
+        oscillator: { type: 'sawtooth' },
+        envelope: { attack: 0.1, decay: 0.2, sustain: 0.9, release: 0.8 }
+      }).toDestination();
+    
+    case 'flute':
+      return new Tone.AMSynth({
+        harmonicity: 2,
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.3, decay: 0.2, sustain: 0.6, release: 1.5 }
+      }).toDestination();
+    
+    case 'cello':
+    case 'violin':
+      return new Tone.AMSynth({
+        harmonicity: 1,
+        oscillator: { type: 'sawtooth' },
+        envelope: { attack: 0.4, decay: 0.3, sustain: 0.8, release: 2 }
+      }).toDestination();
+    
+    case 'bassoon':
+      return new Tone.FMSynth({
+        modulationIndex: 15,
+        harmonicity: 0.5,
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.3, decay: 0.4, sustain: 0.7, release: 1.5 }
+      }).toDestination();
+    
+    case 'guitar':
+      return new Tone.PluckSynth({
+        attackNoise: 1,
+        dampening: 4000,
+        resonance: 0.7
+      }).toDestination();
+    
+    default:
+      return new Tone.Synth().toDestination();
   }
+};
+
+export const initializeAudio = async (instrument: string = 'piano') => {
+  if (synth) {
+    synth.dispose();
+  }
+  
+  synth = createInstrument(instrument);
   
   if (Tone.context.state !== 'running') {
     await Tone.start();
   }
 };
 
-export const playSequence = async (notes: ParsedNote[], speed: number = 1) => {
-  await initializeAudio();
+export const playSequence = async (notes: ParsedNote[], speed: number = 1, instrument: string = 'piano') => {
+  await initializeAudio(instrument);
   
   if (!synth) return;
 

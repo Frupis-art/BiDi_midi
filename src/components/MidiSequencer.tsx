@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CirclePlay, Save, ArrowUp, ArrowDown, Upload, Download, Music, Globe } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
@@ -30,8 +31,21 @@ const MidiSequencer = () => {
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [speed, setSpeed] = useState([1]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [selectedInstrument, setSelectedInstrument] = useState('piano');
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const instruments = [
+    { value: 'piano', label: 'Фортепиано' },
+    { value: 'clarinet', label: 'Кларнет' },
+    { value: 'trumpet', label: 'Труба' },
+    { value: 'flute', label: 'Флейта' },
+    { value: 'cello', label: 'Виолончель' },
+    { value: 'bassoon', label: 'Фагот' },
+    { value: 'oboe', label: 'Гобой' },
+    { value: 'violin', label: 'Скрипка' },
+    { value: 'guitar', label: 'Гитара' }
+  ];
 
   // Анализ в реальном времени
   const analysisResult = useMemo(() => {
@@ -143,7 +157,7 @@ const MidiSequencer = () => {
       setIsPlaying(true);
       setCurrentNoteIndex(-1);
       
-      await playSequence(parsedNotes, speed[0]);
+      await playSequence(parsedNotes, speed[0], selectedInstrument);
       
       let currentTime = 0;
       timeoutRefs.current = [];
@@ -338,6 +352,24 @@ const MidiSequencer = () => {
             <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
               {renderSequenceWithHighlights()}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs md:text-sm font-medium">
+              Инструмент
+            </label>
+            <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {instruments.map((instrument) => (
+                  <SelectItem key={instrument.value} value={instrument.value}>
+                    {instrument.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
