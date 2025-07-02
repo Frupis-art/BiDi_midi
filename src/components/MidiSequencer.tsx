@@ -352,7 +352,8 @@ const MidiSequencer = () => {
     }
 
     try {
-      await exportMidi(parsedNotes, speed[0], { format });
+      // Передаем обе последовательности в функцию экспорта
+      await exportMidi(parsedNotes, parsedNotes2, speed[0], { format });
       
       const messages = {
         midi: t('midiSaved'),
@@ -377,9 +378,19 @@ const MidiSequencer = () => {
     }
 
     try {
-      const importedSequence = await importMidi(file);
-      setSequence(importedSequence);
-      toast.success(t('midiImported'));
+      // Получаем обе последовательности из импорта
+      const { sequence1, sequence2 } = await importMidi(file);
+      setSequence(sequence1);
+      setSequence2(sequence2);
+      
+      let message = t('midiImported');
+      if (sequence1 && sequence2) {
+        message += ' (2 трека)';
+      } else if (sequence1) {
+        message += ' (1 трек)';
+      }
+      
+      toast.success(message);
     } catch (error) {
       console.error('Import error:', error);
       toast.error(t('importError') + ': ' + (error as Error).message);
