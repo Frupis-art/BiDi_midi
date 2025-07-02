@@ -140,7 +140,7 @@ const MidiSequencer = () => {
   };
 
   const transposeSequence = (semitones: number) => {
-    if (!hasValidSequence) {
+    if (!analysisResult.hasValidSequence) {
       toast.error(t('playbackError'));
       return;
     }
@@ -162,7 +162,33 @@ const MidiSequencer = () => {
     }
     
     setSequence(newSequence);
-    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones}`);
+    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
+  };
+
+  const transposeSequence2 = (semitones: number) => {
+    if (!analysisResult2.hasValidSequence) {
+      toast.error(t('playbackError'));
+      return;
+    }
+
+    let newSequence = '';
+    
+    for (const note of parsedNotes2) {
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
+        
+        let noteText = newNote;
+        if (newOctave !== 4) noteText += newOctave;
+        if (note.duration !== 1000) noteText += `(${note.duration})`;
+        
+        newSequence += noteText;
+      }
+    }
+    
+    setSequence2(newSequence);
+    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
   };
 
   const handlePlay = async () => {
@@ -396,7 +422,7 @@ const MidiSequencer = () => {
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence(1)}
-                  disabled={!hasValidSequence}
+                  disabled={!analysisResult.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title={t('transposeUp')}
@@ -405,7 +431,7 @@ const MidiSequencer = () => {
                 </Button>
                 <Button
                   onClick={() => transposeSequence(-1)}
-                  disabled={!hasValidSequence}
+                  disabled={!analysisResult.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
                   title={t('transposeDown')}
@@ -439,7 +465,7 @@ const MidiSequencer = () => {
             <div className="flex gap-1 md:gap-2">
               <div className="flex flex-col gap-1">
                 <Button
-                  onClick={() => {}} // Пока пустая функция для второй последовательности
+                  onClick={() => transposeSequence2(1)}
                   disabled={!analysisResult2.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
@@ -448,7 +474,7 @@ const MidiSequencer = () => {
                   <ArrowUp className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
                 <Button
-                  onClick={() => {}} // Пока пустая функция для второй последовательности
+                  onClick={() => transposeSequence2(-1)}
                   disabled={!analysisResult2.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
