@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CirclePlay, Save, ArrowUp, ArrowDown, Upload, Download, Music, Globe } from 'lucide-react';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -189,6 +189,51 @@ const MidiSequencer = () => {
     
     setSequence2(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
+  };
+
+  const multiplyDuration = (multiplier: number, sequenceNumber: number) => {
+    const currentSequence = sequenceNumber === 1 ? sequence : sequence2;
+    const currentNotes = sequenceNumber === 1 ? parsedNotes : parsedNotes2;
+    const currentAnalysis = sequenceNumber === 1 ? analysisResult : analysisResult2;
+    
+    if (!currentAnalysis.hasValidSequence) {
+      toast.error(t('playbackError'));
+      return;
+    }
+
+    let newSequence = '';
+    
+    for (const note of currentNotes) {
+      if (note.isPause) {
+        // Для пауз тоже применяем множитель
+        const newDuration = Math.ceil(note.duration * multiplier);
+        if (newDuration !== 1000) {
+          newSequence += `P(${newDuration})`;
+        } else {
+          newSequence += 'P';
+        }
+      } else if (note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        // Для нот применяем множитель к длительности
+        const newDuration = Math.ceil(note.duration * multiplier);
+        
+        let noteText = note.note;
+        if (note.octave !== 4) noteText += note.octave;
+        if (newDuration !== 1000) noteText += `(${newDuration})`;
+        
+        newSequence += noteText;
+      }
+    }
+    
+    if (sequenceNumber === 1) {
+      setSequence(newSequence);
+    } else {
+      setSequence2(newSequence);
+    }
+    
+    const multiplierText = multiplier === 0.5 ? 'x0.5' : 'x2';
+    toast.success(`Длительность изменена ${multiplierText} (последовательность ${sequenceNumber})`);
   };
 
   const handlePlay = async () => {
@@ -438,6 +483,24 @@ const MidiSequencer = () => {
                 >
                   <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
+                <Button
+                  onClick={() => multiplyDuration(0.5, 1)}
+                  disabled={!analysisResult.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title="Уменьшить длительность x0.5"
+                >
+                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
+                <Button
+                  onClick={() => multiplyDuration(2, 1)}
+                  disabled={!analysisResult.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title="Увеличить длительность x2"
+                >
+                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
               </div>
               <Textarea
                 id="sequence"
@@ -481,6 +544,24 @@ const MidiSequencer = () => {
                   title={t('transposeDown')}
                 >
                   <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
+                <Button
+                  onClick={() => multiplyDuration(0.5, 2)}
+                  disabled={!analysisResult2.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title="Уменьшить длительность x0.5"
+                >
+                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
+                </Button>
+                <Button
+                  onClick={() => multiplyDuration(2, 2)}
+                  disabled={!analysisResult2.hasValidSequence}
+                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  variant="outline"
+                  title="Увеличить длительность x2"
+                >
+                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
               <Textarea
