@@ -145,19 +145,24 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = '';
+    let newSequence = sequence;
     
-    for (const note of parsedNotes) {
-      if (note.isPause || note.isError) {
-        newSequence += note.originalText;
-      } else if (note.note && note.octave !== undefined) {
+    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
+    for (let i = parsedNotes.length - 1; i >= 0; i--) {
+      const note = parsedNotes[i];
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
         let noteText = newNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText;
+        // Находим позицию оригинальной ноты и заменяем её
+        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const match = originalNoteRegex.exec(newSequence);
+        if (match) {
+          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
+        }
       }
     }
     
@@ -171,19 +176,24 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = '';
+    let newSequence = sequence2;
     
-    for (const note of parsedNotes2) {
-      if (note.isPause || note.isError) {
-        newSequence += note.originalText;
-      } else if (note.note && note.octave !== undefined) {
+    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
+    for (let i = parsedNotes2.length - 1; i >= 0; i--) {
+      const note = parsedNotes2[i];
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
         let noteText = newNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText;
+        // Находим позицию оригинальной ноты и заменяем её
+        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const match = originalNoteRegex.exec(newSequence);
+        if (match) {
+          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
+        }
       }
     }
     
@@ -201,20 +211,23 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = '';
+    let newSequence = currentSequence;
     
-    for (const note of currentNotes) {
+    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
+    for (let i = currentNotes.length - 1; i >= 0; i--) {
+      const note = currentNotes[i];
       if (note.isPause) {
         // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
-        if (newDuration !== 1000) {
-          newSequence += `P(${newDuration})`;
-        } else {
-          newSequence += 'P';
+        let pauseText = newDuration !== 1000 ? `P(${newDuration})` : 'P';
+        
+        // Находим позицию оригинальной паузы и заменяем её
+        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const match = originalNoteRegex.exec(newSequence);
+        if (match) {
+          newSequence = newSequence.substring(0, match.index) + pauseText + newSequence.substring(match.index + match[0].length);
         }
-      } else if (note.isError) {
-        newSequence += note.originalText;
-      } else if (note.note && note.octave !== undefined) {
+      } else if (!note.isError && note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
         
@@ -222,7 +235,12 @@ const MidiSequencer = () => {
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        newSequence += noteText;
+        // Находим позицию оригинальной ноты и заменяем её
+        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const match = originalNoteRegex.exec(newSequence);
+        if (match) {
+          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
+        }
       }
     }
     
