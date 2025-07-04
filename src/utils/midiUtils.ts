@@ -17,19 +17,20 @@ interface ParsedNote {
 // Обновленные регулярные выражения для миллисекунд
 const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
 const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
-const COMMENT_REGEX = /^\/\/.*\/\/$/;
+// Обновленное регулярное выражение для комментариев с поддержкой переносов строк
+const COMMENT_REGEX = /^\/\/[\s\S]*\/\/$/;
 
 export const parseNoteSequence = (sequence: string, t: (key: string) => string): ParsedNote[] => {
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Новая логика разбиения строки на элементы
+  // Новая логика разбиения строки на элементы с поддержкой многострочных комментариев
   const elements = [];
   let i = 0;
   
   while (i < sequence.length) {
-    // Пропускаем пробелы
-    while (i < sequence.length && /\s/.test(sequence[i])) {
+    // Пропускаем пробелы (но НЕ переносы строк, если мы не в комментарии)
+    while (i < sequence.length && /[ \t]/.test(sequence[i])) {
       i++;
     }
     
@@ -49,8 +50,15 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       
       const comment = sequence.substring(i, commentEnd);
       elements.push(comment);
+      console.log('Found comment:', comment); // Для отладки
       i = commentEnd;
     } else {
+      // Пропускаем переносы строк вне комментариев
+      if (sequence[i] === '\n' || sequence[i] === '\r') {
+        i++;
+        continue;
+      }
+      
       // Обычная нота или пауза
       let elementStart = i;
       
