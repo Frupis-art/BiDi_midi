@@ -20,8 +20,6 @@ interface ParsedNote {
   originalText: string;
   isError: boolean;
   errorMessage?: string;
-  textStartPos?: number;
-  textEndPos?: number;
 }
 
 const MidiSequencer = () => {
@@ -147,32 +145,21 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = sequence;
+    let newSequence = '';
     
-    // Создаем массив замен с позициями и сортируем от конца к началу
-    const replacements = parsedNotes
-      .filter(note => !note.isPause && !note.isError && note.note && note.octave !== undefined && note.textStartPos !== undefined && note.textEndPos !== undefined)
-      .map(note => {
-        const { note: newNote, octave: newOctave } = transposeNote(note.note!, note.octave!, semitones);
+    for (const note of parsedNotes) {
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
         let noteText = newNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        return {
-          start: note.textStartPos!,
-          end: note.textEndPos!,
-          text: noteText
-        };
-      })
-      .sort((a, b) => b.start - a.start); // Сортируем от конца к началу
-    
-    // Применяем замены
-    replacements.forEach(replacement => {
-      newSequence = newSequence.substring(0, replacement.start) + 
-                   replacement.text + 
-                   newSequence.substring(replacement.end);
-    });
+        newSequence += noteText;
+      }
+    }
     
     setSequence(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
@@ -184,32 +171,21 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = sequence2;
+    let newSequence = '';
     
-    // Создаем массив замен с позициями и сортируем от конца к началу
-    const replacements = parsedNotes2
-      .filter(note => !note.isPause && !note.isError && note.note && note.octave !== undefined && note.textStartPos !== undefined && note.textEndPos !== undefined)
-      .map(note => {
-        const { note: newNote, octave: newOctave } = transposeNote(note.note!, note.octave!, semitones);
+    for (const note of parsedNotes2) {
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
         let noteText = newNote;
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        return {
-          start: note.textStartPos!,
-          end: note.textEndPos!,
-          text: noteText
-        };
-      })
-      .sort((a, b) => b.start - a.start); // Сортируем от конца к началу
-    
-    // Применяем замены
-    replacements.forEach(replacement => {
-      newSequence = newSequence.substring(0, replacement.start) + 
-                   replacement.text + 
-                   newSequence.substring(replacement.end);
-    });
+        newSequence += noteText;
+      }
+    }
     
     setSequence2(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
@@ -225,42 +201,30 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = currentSequence;
+    let newSequence = '';
     
-    // Создаем массив замен с позициями и сортируем от конца к началу
-    const replacements = currentNotes
-      .filter(note => note.textStartPos !== undefined && note.textEndPos !== undefined)
-      .map(note => {
-        let noteText = '';
-        
-        if (note.isPause) {
-          const newDuration = Math.ceil(note.duration * multiplier);
-          noteText = newDuration !== 1000 ? `P(${newDuration})` : 'P';
-        } else if (!note.isError && note.note && note.octave !== undefined) {
-          const newDuration = Math.ceil(note.duration * multiplier);
-          
-          noteText = note.note;
-          if (note.octave !== 4) noteText += note.octave;
-          if (newDuration !== 1000) noteText += `(${newDuration})`;
+    for (const note of currentNotes) {
+      if (note.isPause) {
+        // Для пауз тоже применяем множитель
+        const newDuration = Math.ceil(note.duration * multiplier);
+        if (newDuration !== 1000) {
+          newSequence += `P(${newDuration})`;
         } else {
-          // Для ошибочных нот оставляем как есть
-          noteText = note.originalText;
+          newSequence += 'P';
         }
+      } else if (note.isError) {
+        newSequence += note.originalText;
+      } else if (note.note && note.octave !== undefined) {
+        // Для нот применяем множитель к длительности
+        const newDuration = Math.ceil(note.duration * multiplier);
         
-        return {
-          start: note.textStartPos!,
-          end: note.textEndPos!,
-          text: noteText
-        };
-      })
-      .sort((a, b) => b.start - a.start); // Сортируем от конца к началу
-    
-    // Применяем замены
-    replacements.forEach(replacement => {
-      newSequence = newSequence.substring(0, replacement.start) + 
-                   replacement.text + 
-                   newSequence.substring(replacement.end);
-    });
+        let noteText = note.note;
+        if (note.octave !== 4) noteText += note.octave;
+        if (newDuration !== 1000) noteText += `(${newDuration})`;
+        
+        newSequence += noteText;
+      }
+    }
     
     if (sequenceNumber === 1) {
       setSequence(newSequence);

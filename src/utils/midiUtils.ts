@@ -11,8 +11,6 @@ interface ParsedNote {
   originalText: string;
   isError: boolean;
   errorMessage?: string;
-  textStartPos?: number;
-  textEndPos?: number;
 }
 
 // Обновленные регулярные выражения для миллисекунд
@@ -23,11 +21,10 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Разбиваем последовательность на отдельные элементы с позициями
+  // Разбиваем последовательность на отдельные элементы
   const elements = [];
   let currentElement = '';
   let inBrackets = false;
-  let elementStartPos = 0;
   
   for (let i = 0; i < sequence.length; i++) {
     const char = sequence[i];
@@ -39,41 +36,30 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       inBrackets = false;
       currentElement += char;
     } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
-      elements.push({
-        text: currentElement.trim(),
-        startPos: elementStartPos,
-        endPos: i - 1
-      });
+      elements.push(currentElement.trim());
       currentElement = char;
-      elementStartPos = i;
     } else {
       currentElement += char;
     }
   }
   
   if (currentElement) {
-    elements.push({
-      text: currentElement.trim(),
-      startPos: elementStartPos,
-      endPos: sequence.length - 1
-    });
+    elements.push(currentElement.trim());
   }
   
   elements.forEach((element, index) => {
-    const originalText = element.text;
+    const originalText = element;
     let parsedNote: ParsedNote = {
       duration: 1000, // Дефолтная длительность 1000мс
       isPause: false,
       startTime: currentTime,
       endTime: currentTime + 1000,
       originalText,
-      isError: false,
-      textStartPos: element.startPos,
-      textEndPos: element.endPos + 1
+      isError: false
     };
 
     // Проверяем паузу
-    const pauseMatch = element.text.match(PAUSE_REGEX);
+    const pauseMatch = element.match(PAUSE_REGEX);
     if (pauseMatch) {
       const durationStr = pauseMatch[2];
       const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
@@ -88,7 +74,7 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       }
     } else {
       // Проверяем ноту
-      const noteMatch = element.text.match(NOTE_REGEX);
+      const noteMatch = element.match(NOTE_REGEX);
       if (noteMatch) {
         const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
         const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
@@ -111,7 +97,7 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
         }
       } else {
         parsedNote.isError = true;
-        parsedNote.errorMessage = `${t('invalidFormat')}: ${element.text}`;
+        parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
       }
     }
 
