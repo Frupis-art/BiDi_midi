@@ -145,11 +145,10 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = sequence;
+    // Создаем массив замен с позициями
+    const replacements: Array<{start: number, end: number, text: string}> = [];
     
-    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
-    for (let i = parsedNotes.length - 1; i >= 0; i--) {
-      const note = parsedNotes[i];
+    parsedNotes.forEach((note) => {
       if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -157,14 +156,23 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        // Находим позицию оригинальной ноты и заменяем её
-        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-        const match = originalNoteRegex.exec(newSequence);
-        if (match) {
-          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
-        }
+        replacements.push({
+          start: note.startTime,
+          end: note.endTime,
+          text: noteText
+        });
       }
-    }
+    });
+    
+    // Применяем замены от конца к началу
+    let newSequence = sequence;
+    replacements
+      .sort((a, b) => b.start - a.start)
+      .forEach(replacement => {
+        newSequence = newSequence.substring(0, replacement.start) + 
+                     replacement.text + 
+                     newSequence.substring(replacement.end);
+      });
     
     setSequence(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
@@ -176,11 +184,10 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = sequence2;
+    // Создаем массив замен с позициями
+    const replacements: Array<{start: number, end: number, text: string}> = [];
     
-    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
-    for (let i = parsedNotes2.length - 1; i >= 0; i--) {
-      const note = parsedNotes2[i];
+    parsedNotes2.forEach((note) => {
       if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -188,14 +195,23 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        // Находим позицию оригинальной ноты и заменяем её
-        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-        const match = originalNoteRegex.exec(newSequence);
-        if (match) {
-          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
-        }
+        replacements.push({
+          start: note.startTime,
+          end: note.endTime,
+          text: noteText
+        });
       }
-    }
+    });
+    
+    // Применяем замены от конца к началу
+    let newSequence = sequence2;
+    replacements
+      .sort((a, b) => b.start - a.start)
+      .forEach(replacement => {
+        newSequence = newSequence.substring(0, replacement.start) + 
+                     replacement.text + 
+                     newSequence.substring(replacement.end);
+      });
     
     setSequence2(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
@@ -211,22 +227,20 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = currentSequence;
+    // Создаем массив замен с позициями
+    const replacements: Array<{start: number, end: number, text: string}> = [];
     
-    // Заменяем каждую ноту в оригинальном тексте, сохраняя структуру
-    for (let i = currentNotes.length - 1; i >= 0; i--) {
-      const note = currentNotes[i];
+    currentNotes.forEach((note) => {
       if (note.isPause) {
         // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         let pauseText = newDuration !== 1000 ? `P(${newDuration})` : 'P';
         
-        // Находим позицию оригинальной паузы и заменяем её
-        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-        const match = originalNoteRegex.exec(newSequence);
-        if (match) {
-          newSequence = newSequence.substring(0, match.index) + pauseText + newSequence.substring(match.index + match[0].length);
-        }
+        replacements.push({
+          start: note.startTime,
+          end: note.endTime,
+          text: pauseText
+        });
       } else if (!note.isError && note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
@@ -235,14 +249,23 @@ const MidiSequencer = () => {
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        // Находим позицию оригинальной ноты и заменяем её
-        const originalNoteRegex = new RegExp(note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-        const match = originalNoteRegex.exec(newSequence);
-        if (match) {
-          newSequence = newSequence.substring(0, match.index) + noteText + newSequence.substring(match.index + match[0].length);
-        }
+        replacements.push({
+          start: note.startTime,
+          end: note.endTime,
+          text: noteText
+        });
       }
-    }
+    });
+    
+    // Применяем замены от конца к началу
+    let newSequence = currentSequence;
+    replacements
+      .sort((a, b) => b.start - a.start)
+      .forEach(replacement => {
+        newSequence = newSequence.substring(0, replacement.start) + 
+                     replacement.text + 
+                     newSequence.substring(replacement.end);
+      });
     
     if (sequenceNumber === 1) {
       setSequence(newSequence);
