@@ -57,7 +57,7 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       } else if (char === ')') {
         inBrackets = false;
         currentElement += char;
-      } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
+      } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement && !currentElement.includes('//')) {
         elements.push(currentElement.trim());
         currentElement = char;
       } else {
@@ -84,52 +84,54 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       isComment: false
     };
 
-    // Проверяем комментарий
+    // Проверяем комментарий ПЕРВЫМ
     if (COMMENT_REGEX.test(element)) {
       parsedNote.isComment = true;
       parsedNote.duration = 0; // Комментарии не занимают времени
       parsedNote.endTime = currentTime;
     }
     // Проверяем паузу
-    else if (element.match(PAUSE_REGEX)) {
+    else {
       const pauseMatch = element.match(PAUSE_REGEX);
-      const durationStr = pauseMatch[2];
-      const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
-      
-      if (durationStr && (isNaN(duration) || duration <= 0)) {
-        parsedNote.isError = true;
-        parsedNote.errorMessage = `${t('invalidPauseDuration')}: ${durationStr}`;
-      } else {
-        parsedNote.isPause = true;
-        parsedNote.duration = duration;
-        parsedNote.endTime = currentTime + duration;
-      }
-    } else {
-      // Проверяем ноту
-      const noteMatch = element.match(NOTE_REGEX);
-      if (noteMatch) {
-        const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
-        const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
-        const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолтная длительность 1000мс
-
-        // Проверяем октаву - только диапазон 0-8
-        if (octave < 0 || octave > 8) {
+      if (pauseMatch) {
+        const durationStr = pauseMatch[2];
+        const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
+        
+        if (durationStr && (isNaN(duration) || duration <= 0)) {
           parsedNote.isError = true;
-          parsedNote.errorMessage = `${t('invalidOctave')}: ${octave}. ${t('octaveRange')}`;
-        }
-        // Проверяем длительность
-        else if (durationStr && (isNaN(duration) || duration <= 0)) {
-          parsedNote.isError = true;
-          parsedNote.errorMessage = `${t('invalidDuration')}: ${durationStr}`;
+          parsedNote.errorMessage = `${t('invalidPauseDuration')}: ${durationStr}`;
         } else {
-          parsedNote.note = noteName.toUpperCase() + (accidental || '');
-          parsedNote.octave = octave;
+          parsedNote.isPause = true;
           parsedNote.duration = duration;
           parsedNote.endTime = currentTime + duration;
         }
       } else {
-        parsedNote.isError = true;
-        parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
+        // Проверяем ноту
+        const noteMatch = element.match(NOTE_REGEX);
+        if (noteMatch) {
+          const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
+          const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
+          const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолтная длительность 1000мс
+
+          // Проверяем октаву - только диапазон 0-8
+          if (octave < 0 || octave > 8) {
+            parsedNote.isError = true;
+            parsedNote.errorMessage = `${t('invalidOctave')}: ${octave}. ${t('octaveRange')}`;
+          }
+          // Проверяем длительность
+          else if (durationStr && (isNaN(duration) || duration <= 0)) {
+            parsedNote.isError = true;
+            parsedNote.errorMessage = `${t('invalidDuration')}: ${durationStr}`;
+          } else {
+            parsedNote.note = noteName.toUpperCase() + (accidental || '');
+            parsedNote.octave = octave;
+            parsedNote.duration = duration;
+            parsedNote.endTime = currentTime + duration;
+          }
+        } else {
+          parsedNote.isError = true;
+          parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
+        }
       }
     }
 
