@@ -23,54 +23,74 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Разбиваем последовательность на отдельные элементы
+  // Новая логика разбиения строки на элементы
   const elements = [];
-  let currentElement = '';
-  let inBrackets = false;
-  let inComment = false;
+  let i = 0;
   
-  for (let i = 0; i < sequence.length; i++) {
-    const char = sequence[i];
-    const nextChar = sequence[i + 1];
+  while (i < sequence.length) {
+    // Пропускаем пробелы
+    while (i < sequence.length && /\s/.test(sequence[i])) {
+      i++;
+    }
     
-    // Проверяем начало комментария
-    if (char === '/' && nextChar === '/' && !inComment && !inBrackets) {
-      if (currentElement.trim()) {
-        elements.push(currentElement.trim());
-        currentElement = '';
+    if (i >= sequence.length) break;
+    
+    // Проверяем, начинается ли комментарий
+    if (sequence[i] === '/' && sequence[i + 1] === '/') {
+      // Ищем конец комментария
+      let commentEnd = i + 2;
+      while (commentEnd < sequence.length - 1) {
+        if (sequence[commentEnd] === '/' && sequence[commentEnd + 1] === '/') {
+          commentEnd += 2;
+          break;
+        }
+        commentEnd++;
       }
-      inComment = true;
-      currentElement = char;
-    }
-    // Проверяем конец комментария
-    else if (char === '/' && sequence[i - 1] === '/' && inComment) {
-      currentElement += char;
-      elements.push(currentElement.trim());
-      currentElement = '';
-      inComment = false;
-    }
-    // Обычная логика для скобок и нот
-    else if (!inComment) {
-      if (char === '(') {
-        inBrackets = true;
-        currentElement += char;
-      } else if (char === ')') {
-        inBrackets = false;
-        currentElement += char;
-      } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement && !currentElement.includes('//')) {
-        elements.push(currentElement.trim());
-        currentElement = char;
-      } else {
-        currentElement += char;
-      }
+      
+      const comment = sequence.substring(i, commentEnd);
+      elements.push(comment);
+      i = commentEnd;
     } else {
-      currentElement += char;
+      // Обычная нота или пауза
+      let elementStart = i;
+      
+      // Читаем букву ноты или P для паузы
+      if (/[cdefgabpCDEFGABP]/.test(sequence[i])) {
+        i++;
+        
+        // Читаем диез или бемоль
+        if (i < sequence.length && (sequence[i] === '#' || sequence[i] === 'b')) {
+          i++;
+        }
+        
+        // Читаем октаву
+        if (i < sequence.length && /\d/.test(sequence[i])) {
+          i++;
+        }
+        
+        // Читаем длительность в скобках
+        if (i < sequence.length && sequence[i] === '(') {
+          i++; // пропускаем открывающую скобку
+          while (i < sequence.length && sequence[i] !== ')') {
+            i++;
+          }
+          if (i < sequence.length && sequence[i] === ')') {
+            i++; // пропускаем закрывающую скобку
+          }
+        }
+        
+        const element = sequence.substring(elementStart, i);
+        if (element.trim()) {
+          elements.push(element.trim());
+        }
+      } else {
+        // Неизвестный символ - пропускаем
+        i++;
+      }
     }
   }
   
-  if (currentElement.trim()) {
-    elements.push(currentElement.trim());
-  }
+  console.log('Parsed elements:', elements); // Для отладки
   
   elements.forEach((element, index) => {
     const originalText = element;
@@ -84,8 +104,11 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       isComment: false
     };
 
+    console.log('Processing element:', element); // Для отладки
+
     // Проверяем комментарий ПЕРВЫМ
     if (COMMENT_REGEX.test(element)) {
+      console.log('Found comment:', element); // Для отладки
       parsedNote.isComment = true;
       parsedNote.duration = 0; // Комментарии не занимают времени
       parsedNote.endTime = currentTime;
