@@ -20,12 +20,13 @@ interface ParsedNote {
   originalText: string;
   isError: boolean;
   errorMessage?: string;
+  isComment?: boolean;
 }
 
 const MidiSequencer = () => {
   const { language, toggleLanguage, t } = useLanguage();
-  const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
-  const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
+  const [sequence, setSequence] = useState('f#5e5d5c#5babc#5//мелодия//');
+  const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250)//аккомпанемент//a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
   const [parsedNotes2, setParsedNotes2] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,10 +60,11 @@ const MidiSequencer = () => {
     try {
       const notes = parseNoteSequence(sequence, t);
       const hasErrors = notes.some(note => note.isError);
+      const hasValidNotes = notes.some(note => !note.isError && !note.isPause && !note.isComment);
       return {
         notes,
         hasErrors,
-        hasValidSequence: !hasErrors && notes.length > 0
+        hasValidSequence: !hasErrors && hasValidNotes
       };
     } catch (error) {
       return { notes: [], hasErrors: true, hasValidSequence: false };
@@ -78,10 +80,11 @@ const MidiSequencer = () => {
     try {
       const notes = parseNoteSequence(sequence2, t);
       const hasErrors = notes.some(note => note.isError);
+      const hasValidNotes = notes.some(note => !note.isError && !note.isPause && !note.isComment);
       return {
         notes,
         hasErrors,
-        hasValidSequence: !hasErrors && notes.length > 0
+        hasValidSequence: !hasErrors && hasValidNotes
       };
     } catch (error) {
       return { notes: [], hasErrors: true, hasValidSequence: false };
@@ -148,7 +151,7 @@ const MidiSequencer = () => {
     let newSequence = '';
     
     for (const note of parsedNotes) {
-      if (note.isPause || note.isError) {
+      if (note.isPause || note.isError || note.isComment) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
@@ -174,7 +177,7 @@ const MidiSequencer = () => {
     let newSequence = '';
     
     for (const note of parsedNotes2) {
-      if (note.isPause || note.isError) {
+      if (note.isPause || note.isError || note.isComment) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
@@ -212,7 +215,7 @@ const MidiSequencer = () => {
         } else {
           newSequence += 'P';
         }
-      } else if (note.isError) {
+      } else if (note.isError || note.isComment) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
@@ -267,7 +270,7 @@ const MidiSequencer = () => {
       
       timeoutRefs.current = [];
       
-      // Подсветка для первой последовательности
+      // Подсветка для первой последовательности (пропускаем комментарии)
       if (analysisResult.hasValidSequence) {
         let currentTime = 0;
         parsedNotes.forEach((note, index) => {
@@ -284,11 +287,15 @@ const MidiSequencer = () => {
           }, currentTime + adjustedDuration);
           
           timeoutRefs.current.push(startTimeout, endTimeout);
-          currentTime += adjustedDuration;
+          
+          // Комментарии не влияют на время
+          if (!note.isComment) {
+            currentTime += adjustedDuration;
+          }
         });
       }
       
-      // Подсветка для второй последовательности
+      // Подсветка для второй последовательности (пропускаем комментарии)
       if (analysisResult2.hasValidSequence) {
         let currentTime = 0;
         parsedNotes2.forEach((note, index) => {
@@ -305,15 +312,19 @@ const MidiSequencer = () => {
           }, currentTime + adjustedDuration);
           
           timeoutRefs.current.push(startTimeout, endTimeout);
-          currentTime += adjustedDuration;
+          
+          // Комментарии не влияют на время
+          if (!note.isComment) {
+            currentTime += adjustedDuration;
+          }
         });
       }
       
-      // Определяем максимальную длительность для завершения воспроизведения
+      // Определяем максимальную длительность для завершения воспроизведения (игнорируем комментарии)
       const maxDuration1 = analysisResult.hasValidSequence ? 
-        parsedNotes.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
+        parsedNotes.reduce((sum, note) => sum + (note.isComment ? 0 : note.duration / speed[0]), 0) : 0;
       const maxDuration2 = analysisResult2.hasValidSequence ? 
-        parsedNotes2.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
+        parsedNotes2.reduce((sum, note) => sum + (note.isComment ? 0 : note.duration / speed[0]), 0) : 0;
       
       const maxDuration = Math.max(maxDuration1, maxDuration2);
       
@@ -408,7 +419,9 @@ const MidiSequencer = () => {
 
     return notes.map((note, index) => {
       let className = '';
-      if (note.isError) {
+      if (note.isComment) {
+        className = 'bg-blue-100 text-blue-800 italic';
+      } else if (note.isError) {
         className = 'bg-red-200 text-red-800';
       } else if (currentIndex === index) {
         className = 'bg-green-200 text-green-800';
@@ -446,6 +459,9 @@ const MidiSequencer = () => {
           </div>
           <p className="text-xs md:text-sm text-muted-foreground text-center">
             {t('description')}
+          </p>
+          <p className="text-xs text-muted-foreground text-center">
+            Комментарии: //текст комментария// - игнорируются при воспроизведении и сохранении
           </p>
         </CardHeader>
         <CardContent className="space-y-3 md:space-y-4">
