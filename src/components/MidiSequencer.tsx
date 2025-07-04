@@ -145,10 +145,11 @@ const MidiSequencer = () => {
       return;
     }
 
-    // Создаем массив замен с позициями
-    const replacements: Array<{start: number, end: number, text: string}> = [];
+    let newSequence = sequence;
     
-    parsedNotes.forEach((note) => {
+    // Заменяем каждую ноту от конца к началу, чтобы не сбить позиции
+    for (let i = parsedNotes.length - 1; i >= 0; i--) {
+      const note = parsedNotes[i];
       if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -156,23 +157,23 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        replacements.push({
-          start: note.startTime,
-          end: note.endTime,
-          text: noteText
-        });
+        // Экранируем специальные символы для регулярного выражения
+        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Ищем последнее вхождение этой ноты (идем от конца)
+        const regex = new RegExp(escapedOriginal, 'g');
+        const matches = [...newSequence.matchAll(regex)];
+        
+        if (matches.length > 0) {
+          // Берем последнее совпадение
+          const lastMatch = matches[matches.length - 1];
+          if (lastMatch.index !== undefined) {
+            newSequence = newSequence.substring(0, lastMatch.index) + 
+                         noteText + 
+                         newSequence.substring(lastMatch.index + lastMatch[0].length);
+          }
+        }
       }
-    });
-    
-    // Применяем замены от конца к началу
-    let newSequence = sequence;
-    replacements
-      .sort((a, b) => b.start - a.start)
-      .forEach(replacement => {
-        newSequence = newSequence.substring(0, replacement.start) + 
-                     replacement.text + 
-                     newSequence.substring(replacement.end);
-      });
+    }
     
     setSequence(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
@@ -184,10 +185,11 @@ const MidiSequencer = () => {
       return;
     }
 
-    // Создаем массив замен с позициями
-    const replacements: Array<{start: number, end: number, text: string}> = [];
+    let newSequence = sequence2;
     
-    parsedNotes2.forEach((note) => {
+    // Заменяем каждую ноту от конца к началу, чтобы не сбить позиции
+    for (let i = parsedNotes2.length - 1; i >= 0; i--) {
+      const note = parsedNotes2[i];
       if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -195,23 +197,23 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        replacements.push({
-          start: note.startTime,
-          end: note.endTime,
-          text: noteText
-        });
+        // Экранируем специальные символы для регулярного выражения
+        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Ищем последнее вхождение этой ноты (идем от конца)
+        const regex = new RegExp(escapedOriginal, 'g');
+        const matches = [...newSequence.matchAll(regex)];
+        
+        if (matches.length > 0) {
+          // Берем последнее совпадение
+          const lastMatch = matches[matches.length - 1];
+          if (lastMatch.index !== undefined) {
+            newSequence = newSequence.substring(0, lastMatch.index) + 
+                         noteText + 
+                         newSequence.substring(lastMatch.index + lastMatch[0].length);
+          }
+        }
       }
-    });
-    
-    // Применяем замены от конца к началу
-    let newSequence = sequence2;
-    replacements
-      .sort((a, b) => b.start - a.start)
-      .forEach(replacement => {
-        newSequence = newSequence.substring(0, replacement.start) + 
-                     replacement.text + 
-                     newSequence.substring(replacement.end);
-      });
+    }
     
     setSequence2(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
@@ -227,20 +229,31 @@ const MidiSequencer = () => {
       return;
     }
 
-    // Создаем массив замен с позициями
-    const replacements: Array<{start: number, end: number, text: string}> = [];
+    let newSequence = currentSequence;
     
-    currentNotes.forEach((note) => {
+    // Заменяем каждую ноту от конца к началу, чтобы не сбить позиции
+    for (let i = currentNotes.length - 1; i >= 0; i--) {
+      const note = currentNotes[i];
       if (note.isPause) {
         // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         let pauseText = newDuration !== 1000 ? `P(${newDuration})` : 'P';
         
-        replacements.push({
-          start: note.startTime,
-          end: note.endTime,
-          text: pauseText
-        });
+        // Экранируем специальные символы для регулярного выражения
+        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Ищем последнее вхождение этой паузы (идем от конца)
+        const regex = new RegExp(escapedOriginal, 'g');
+        const matches = [...newSequence.matchAll(regex)];
+        
+        if (matches.length > 0) {
+          // Берем последнее совпадение
+          const lastMatch = matches[matches.length - 1];
+          if (lastMatch.index !== undefined) {
+            newSequence = newSequence.substring(0, lastMatch.index) + 
+                         pauseText + 
+                         newSequence.substring(lastMatch.index + lastMatch[0].length);
+          }
+        }
       } else if (!note.isError && note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
@@ -249,23 +262,23 @@ const MidiSequencer = () => {
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        replacements.push({
-          start: note.startTime,
-          end: note.endTime,
-          text: noteText
-        });
+        // Экранируем специальные символы для регулярного выражения
+        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Ищем последнее вхождение этой ноты (идем от конца)
+        const regex = new RegExp(escapedOriginal, 'g');
+        const matches = [...newSequence.matchAll(regex)];
+        
+        if (matches.length > 0) {
+          // Берем последнее совпадение
+          const lastMatch = matches[matches.length - 1];
+          if (lastMatch.index !== undefined) {
+            newSequence = newSequence.substring(0, lastMatch.index) + 
+                         noteText + 
+                         newSequence.substring(lastMatch.index + lastMatch[0].length);
+          }
+        }
       }
-    });
-    
-    // Применяем замены от конца к началу
-    let newSequence = currentSequence;
-    replacements
-      .sort((a, b) => b.start - a.start)
-      .forEach(replacement => {
-        newSequence = newSequence.substring(0, replacement.start) + 
-                     replacement.text + 
-                     newSequence.substring(replacement.end);
-      });
+    }
     
     if (sequenceNumber === 1) {
       setSequence(newSequence);
