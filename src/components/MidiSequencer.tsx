@@ -229,56 +229,35 @@ const MidiSequencer = () => {
       return;
     }
 
-    let newSequence = currentSequence;
+    // Создаем карту замен
+    const replacementMap = new Map<string, string>();
     
-    // Заменяем каждую ноту от конца к началу, чтобы не сбить позиции
-    for (let i = currentNotes.length - 1; i >= 0; i--) {
-      const note = currentNotes[i];
+    currentNotes.forEach((note) => {
       if (note.isPause) {
-        // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         let pauseText = newDuration !== 1000 ? `P(${newDuration})` : 'P';
-        
-        // Экранируем специальные символы для регулярного выражения
-        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Ищем последнее вхождение этой паузы (идем от конца)
-        const regex = new RegExp(escapedOriginal, 'g');
-        const matches = [...newSequence.matchAll(regex)];
-        
-        if (matches.length > 0) {
-          // Берем последнее совпадение
-          const lastMatch = matches[matches.length - 1];
-          if (lastMatch.index !== undefined) {
-            newSequence = newSequence.substring(0, lastMatch.index) + 
-                         pauseText + 
-                         newSequence.substring(lastMatch.index + lastMatch[0].length);
-          }
-        }
+        replacementMap.set(note.originalText, pauseText);
       } else if (!note.isError && note.note && note.octave !== undefined) {
-        // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
         
         let noteText = note.note;
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        // Экранируем специальные символы для регулярного выражения
-        const escapedOriginal = note.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Ищем последнее вхождение этой ноты (идем от конца)
-        const regex = new RegExp(escapedOriginal, 'g');
-        const matches = [...newSequence.matchAll(regex)];
-        
-        if (matches.length > 0) {
-          // Берем последнее совпадение
-          const lastMatch = matches[matches.length - 1];
-          if (lastMatch.index !== undefined) {
-            newSequence = newSequence.substring(0, lastMatch.index) + 
-                         noteText + 
-                         newSequence.substring(lastMatch.index + lastMatch[0].length);
-          }
-        }
+        replacementMap.set(note.originalText, noteText);
       }
-    }
+    });
+    
+    // Применяем замены, сохраняя структуру текста
+    let newSequence = currentSequence;
+    
+    // Заменяем каждое уникальное вхождение
+    replacementMap.forEach((replacement, original) => {
+      // Экранируем специальные символы
+      const escapedOriginal = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedOriginal, 'g');
+      newSequence = newSequence.replace(regex, replacement);
+    });
     
     if (sequenceNumber === 1) {
       setSequence(newSequence);
