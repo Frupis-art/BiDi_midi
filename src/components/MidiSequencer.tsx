@@ -534,7 +534,7 @@ const MidiSequencer = () => {
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
-            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+            <div className="font-mono text-xs md:text-sm max-w-full break-words">
               {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
             </div>
           </div>
@@ -596,7 +596,7 @@ const MidiSequencer = () => {
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+            <div className="font-mono text-xs md:text-sm max-w-full break-words">
               {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
           </div>
