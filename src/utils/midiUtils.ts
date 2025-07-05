@@ -635,9 +635,9 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
               const pauseDuration = Math.round((noteStartTime - currentTime) * 1000);
               if (pauseDuration > 0) {
                 if (pauseDuration === 1000) {
-                  sequence += 'P';
+                  sequence += 'P ';
                 } else {
-                  sequence += `P(${pauseDuration})`;
+                  sequence += `P(${pauseDuration}) `;
                 }
               }
             }
@@ -651,13 +651,13 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence += noteText;
+            sequence += noteText + ' ';
             
             // Обновляем текущее время
             currentTime = noteStartTime + noteDuration;
           });
           
-          return sequence;
+          return sequence.trim();
         };
         
         // Первый трек идет в первую последовательность
