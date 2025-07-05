@@ -529,9 +529,10 @@ const MidiSequencer = () => {
                  placeholder="Последовательность 1"
                  className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
                  style={{ 
-                   wordBreak: 'keep-all',
-                   overflowWrap: 'anywhere',
-                   whiteSpace: 'pre-wrap'
+                   wordBreak: 'normal',
+                   overflowWrap: 'normal',
+                   whiteSpace: 'pre-wrap',
+                   lineBreak: 'anywhere'
                  }}
                />
             </div>
@@ -540,9 +541,10 @@ const MidiSequencer = () => {
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
             <div className="font-mono text-xs md:text-sm max-w-full" style={{ 
-              wordBreak: 'keep-all',
-              overflowWrap: 'anywhere',
-              whiteSpace: 'pre-wrap'
+              wordBreak: 'normal',
+              overflowWrap: 'normal',
+              whiteSpace: 'pre-wrap',
+              lineBreak: 'anywhere'
             }}>
               {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
             </div>
@@ -600,9 +602,10 @@ const MidiSequencer = () => {
                  placeholder="Последовательность 2"
                  className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
                  style={{ 
-                   wordBreak: 'keep-all',
-                   overflowWrap: 'anywhere',
-                   whiteSpace: 'pre-wrap'
+                   wordBreak: 'normal',
+                   overflowWrap: 'normal',
+                   whiteSpace: 'pre-wrap',
+                   lineBreak: 'anywhere'
                  }}
                />
             </div>
@@ -611,9 +614,10 @@ const MidiSequencer = () => {
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
             <div className="font-mono text-xs md:text-sm max-w-full" style={{ 
-              wordBreak: 'keep-all',
-              overflowWrap: 'anywhere',
-              whiteSpace: 'pre-wrap'
+              wordBreak: 'normal',
+              overflowWrap: 'normal',
+              whiteSpace: 'pre-wrap',
+              lineBreak: 'anywhere'
             }}>
               {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
