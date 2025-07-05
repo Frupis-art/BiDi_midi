@@ -527,15 +527,23 @@ const MidiSequencer = () => {
                  value={sequence}
                  onChange={(e) => setSequence(e.target.value)}
                  placeholder="Последовательность 1"
-                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm break-words"
-                 style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}
+                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+                 style={{ 
+                   wordBreak: 'keep-all',
+                   overflowWrap: 'anywhere',
+                   whiteSpace: 'pre-wrap'
+                 }}
                />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full break-words">
+            <div className="font-mono text-xs md:text-sm max-w-full" style={{ 
+              wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'pre-wrap'
+            }}>
               {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
             </div>
           </div>
@@ -590,15 +598,23 @@ const MidiSequencer = () => {
                  value={sequence2}
                  onChange={(e) => setSequence2(e.target.value)}
                  placeholder="Последовательность 2"
-                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm break-words"
-                 style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}
+                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+                 style={{ 
+                   wordBreak: 'keep-all',
+                   overflowWrap: 'anywhere',
+                   whiteSpace: 'pre-wrap'
+                 }}
                />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full break-words">
+            <div className="font-mono text-xs md:text-sm max-w-full" style={{ 
+              wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'pre-wrap'
+            }}>
               {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
           </div>
