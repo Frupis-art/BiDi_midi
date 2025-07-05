@@ -592,7 +592,7 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
 
-// Обновленная функция импорта с поддержкой разделения треков
+// Обновленная функция импорта с поддержкой разделения треков и пауз
 export const importMidi = async (file: File): Promise<{ sequence1: string, sequence2: string }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -612,34 +612,55 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Первый трек идет в первую последовательность
-        if (tracksWithNotes[0]) {
-          tracksWithNotes[0].notes.forEach((note) => {
+        // Функция для конвертации трека в последовательность с паузами
+        const convertTrackToSequence = (track: any): string => {
+          // Сортируем ноты по времени начала
+          const sortedNotes = [...track.notes].sort((a, b) => a.time - b.time);
+          let sequence = '';
+          let currentTime = 0;
+          
+          sortedNotes.forEach((note, index) => {
+            const noteStartTime = note.time;
+            const noteDuration = note.duration;
+            
+            // Если есть пауза перед нотой
+            if (noteStartTime > currentTime) {
+              const pauseDuration = Math.round((noteStartTime - currentTime) * 1000);
+              if (pauseDuration > 0) {
+                if (pauseDuration === 1000) {
+                  sequence += 'P';
+                } else {
+                  sequence += `P(${pauseDuration})`;
+                }
+              }
+            }
+            
+            // Добавляем ноту
             const noteName = note.name.replace(/(\d)/, '');
             const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
+            const duration = Math.round(noteDuration * 1000);
             
             let noteText = noteName;
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence1 += noteText;
+            sequence += noteText;
+            
+            // Обновляем текущее время
+            currentTime = noteStartTime + noteDuration;
           });
+          
+          return sequence;
+        };
+        
+        // Первый трек идет в первую последовательность
+        if (tracksWithNotes[0]) {
+          sequence1 = convertTrackToSequence(tracksWithNotes[0]);
         }
         
         // Второй трек (если есть) идет во вторую последовательность
         if (tracksWithNotes[1]) {
-          tracksWithNotes[1].notes.forEach((note) => {
-            const noteName = note.name.replace(/(\d)/, '');
-            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
-            
-            let noteText = noteName;
-            if (octave !== 4) noteText += octave;
-            if (duration !== 1000) noteText += `(${duration})`;
-            
-            sequence2 += noteText;
-          });
+          sequence2 = convertTrackToSequence(tracksWithNotes[1]);
         }
         
         resolve({ sequence1, sequence2 });
