@@ -92,8 +92,15 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
           elements.push(element.trim());
         }
       } else {
-        // Неизвестный символ - пропускаем
-        i++;
+        // Неизвестный символ - создаем ошибку
+        let elementStart = i;
+        while (i < sequence.length && !/[\s\n\r]/.test(sequence[i])) {
+          i++;
+        }
+        const unknownElement = sequence.substring(elementStart, i);
+        if (unknownElement.trim()) {
+          elements.push(unknownElement.trim());
+        }
       }
     }
   }
