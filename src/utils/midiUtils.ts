@@ -14,8 +14,8 @@ interface ParsedNote {
   isComment?: boolean;
 }
 
-// Обновленные регулярные выражения для миллисекунд
-const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
+// Обновленные регулярные выражения для миллисекунд (без поддержки бемолей)
+const NOTE_REGEX = /^([cdefgabCDEFGAB])(#)?(\d)?(\(([\d.]+)\))?$/;
 const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
 // Обновленное регулярное выражение для комментариев с поддержкой переносов строк
 const COMMENT_REGEX = /^\/\/[\s\S]*\/\/$/;
@@ -66,8 +66,8 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       if (/[cdefgabpCDEFGABP]/.test(sequence[i])) {
         i++;
         
-        // Читаем диез или бемоль
-        if (i < sequence.length && (sequence[i] === '#' || sequence[i] === 'b')) {
+        // Читаем только диез (бемоль убрали)
+        if (i < sequence.length && sequence[i] === '#') {
           i++;
         }
         

@@ -100,15 +100,8 @@ const MidiSequencer = () => {
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const flatToSharp = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
     
     let normalizedNote = note;
-    if (note.includes('b')) {
-      const flatNote = note.slice(0, 2);
-      if (flatNote in flatToSharp) {
-        normalizedNote = flatToSharp[flatNote as keyof typeof flatToSharp];
-      }
-    }
     
     const noteIndex = notes.indexOf(normalizedNote);
     if (noteIndex === -1) return { note, octave };
