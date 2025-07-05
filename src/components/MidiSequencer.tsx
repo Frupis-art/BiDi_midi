@@ -522,13 +522,14 @@ const MidiSequencer = () => {
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
-              <Textarea
-                id="sequence"
-                value={sequence}
-                onChange={(e) => setSequence(e.target.value)}
-                placeholder="Последовательность 1"
-                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-              />
+               <Textarea
+                 id="sequence"
+                 value={sequence}
+                 onChange={(e) => setSequence(e.target.value)}
+                 placeholder="Последовательность 1"
+                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm break-words"
+                 style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}
+               />
             </div>
           </div>
 
@@ -584,13 +585,14 @@ const MidiSequencer = () => {
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
-              <Textarea
-                id="sequence2"
-                value={sequence2}
-                onChange={(e) => setSequence2(e.target.value)}
-                placeholder="Последовательность 2"
-                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-              />
+               <Textarea
+                 id="sequence2"
+                 value={sequence2}
+                 onChange={(e) => setSequence2(e.target.value)}
+                 placeholder="Последовательность 2"
+                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm break-words"
+                 style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}
+               />
             </div>
           </div>
 
