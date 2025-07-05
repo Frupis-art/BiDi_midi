@@ -145,7 +145,7 @@ const MidiSequencer = () => {
     
     for (const note of parsedNotes) {
       if (note.isPause || note.isError || note.isComment) {
-        newSequence += note.originalText + ' ';
+        newSequence += note.originalText + '\u00A0';
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -153,7 +153,7 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText + ' ';
+        newSequence += noteText + '\u00A0';
       }
     }
     
@@ -171,7 +171,7 @@ const MidiSequencer = () => {
     
     for (const note of parsedNotes2) {
       if (note.isPause || note.isError || note.isComment) {
-        newSequence += note.originalText + ' ';
+        newSequence += note.originalText + '\u00A0';
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -179,7 +179,7 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText + ' ';
+        newSequence += noteText + '\u00A0';
       }
     }
     
@@ -204,12 +204,12 @@ const MidiSequencer = () => {
         // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         if (newDuration !== 1000) {
-          newSequence += `P(${newDuration}) `;
+          newSequence += `P(${newDuration})\u00A0`;
         } else {
-          newSequence += 'P ';
+          newSequence += 'P\u00A0';
         }
       } else if (note.isError || note.isComment) {
-        newSequence += note.originalText + ' ';
+        newSequence += note.originalText + '\u00A0';
       } else if (note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
@@ -218,7 +218,7 @@ const MidiSequencer = () => {
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        newSequence += noteText + ' ';
+        newSequence += noteText + '\u00A0';
       }
     }
     
@@ -423,7 +423,7 @@ const MidiSequencer = () => {
       return (
         <span key={index} className={className} title={note.errorMessage}>
           {note.originalText}
-          {index < notes.length - 1 && !note.isComment && !notes[index + 1]?.isComment ? ' ' : ''}
+          {index < notes.length - 1 && !note.isComment && !notes[index + 1]?.isComment ? '\u00A0' : ''}
         </span>
       );
     });
@@ -529,13 +529,14 @@ const MidiSequencer = () => {
                  onChange={(e) => setSequence(e.target.value)}
                  placeholder="Последовательность 1"
                  className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+                 style={{ whiteSpace: 'pre-wrap' }}
                />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full">
+            <div className="font-mono text-xs md:text-sm max-w-full" style={{ whiteSpace: 'pre-wrap' }}>
               {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
             </div>
           </div>
@@ -591,13 +592,14 @@ const MidiSequencer = () => {
                  onChange={(e) => setSequence2(e.target.value)}
                  placeholder="Последовательность 2"
                  className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+                 style={{ whiteSpace: 'pre-wrap' }}
                />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full">
+            <div className="font-mono text-xs md:text-sm max-w-full" style={{ whiteSpace: 'pre-wrap' }}>
               {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
           </div>

@@ -29,8 +29,8 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
   let i = 0;
   
   while (i < sequence.length) {
-    // Пропускаем пробелы (но НЕ переносы строк, если мы не в комментарии)
-    while (i < sequence.length && /[ \t]/.test(sequence[i])) {
+    // Пропускаем пробелы и неразрывные пробелы (но НЕ переносы строк, если мы не в комментарии)
+    while (i < sequence.length && /[ \t\u00A0]/.test(sequence[i])) {
       i++;
     }
     
@@ -94,7 +94,7 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       } else {
         // Неизвестный символ - создаем ошибку
         let elementStart = i;
-        while (i < sequence.length && !/[\s\n\r]/.test(sequence[i])) {
+        while (i < sequence.length && !/[\s\n\r\u00A0]/.test(sequence[i])) {
           i++;
         }
         const unknownElement = sequence.substring(elementStart, i);
@@ -635,9 +635,9 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
               const pauseDuration = Math.round((noteStartTime - currentTime) * 1000);
               if (pauseDuration > 0) {
                 if (pauseDuration === 1000) {
-                  sequence += 'P ';
+                  sequence += 'P\u00A0';
                 } else {
-                  sequence += `P(${pauseDuration}) `;
+                  sequence += `P(${pauseDuration})\u00A0`;
                 }
               }
             }
@@ -651,7 +651,7 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence += noteText + ' ';
+            sequence += noteText + '\u00A0';
             
             // Обновляем текущее время
             currentTime = noteStartTime + noteDuration;
