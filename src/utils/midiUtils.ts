@@ -11,101 +11,41 @@ interface ParsedNote {
   originalText: string;
   isError: boolean;
   errorMessage?: string;
-  isComment?: boolean;
 }
 
-// Обновленные регулярные выражения для миллисекунд (без поддержки бемолей)
-const NOTE_REGEX = /^([cdefgabCDEFGAB])(#)?(\d)?(\(([\d.]+)\))?$/;
+// Обновленные регулярные выражения для миллисекунд
+const NOTE_REGEX = /^([cdefgabCDEFGAB])(#|b)?(\d)?(\(([\d.]+)\))?$/;
 const PAUSE_REGEX = /^[pP](\(([\d.]+)\))?$/;
-// Обновленное регулярное выражение для комментариев с поддержкой переносов строк
-const COMMENT_REGEX = /^\/\/[\s\S]*\/\/$/;
 
 export const parseNoteSequence = (sequence: string, t: (key: string) => string): ParsedNote[] => {
   const notes: ParsedNote[] = [];
   let currentTime = 0;
   
-  // Новая логика разбиения строки на элементы с поддержкой многострочных комментариев
+  // Разбиваем последовательность на отдельные элементы
   const elements = [];
-  let i = 0;
+  let currentElement = '';
+  let inBrackets = false;
   
-  while (i < sequence.length) {
-    // Пропускаем пробелы и неразрывные пробелы (но НЕ переносы строк, если мы не в комментарии)
-    while (i < sequence.length && /[ \t\u00A0]/.test(sequence[i])) {
-      i++;
-    }
+  for (let i = 0; i < sequence.length; i++) {
+    const char = sequence[i];
     
-    if (i >= sequence.length) break;
-    
-    // Проверяем, начинается ли комментарий
-    if (sequence[i] === '/' && sequence[i + 1] === '/') {
-      // Ищем конец комментария
-      let commentEnd = i + 2;
-      while (commentEnd < sequence.length - 1) {
-        if (sequence[commentEnd] === '/' && sequence[commentEnd + 1] === '/') {
-          commentEnd += 2;
-          break;
-        }
-        commentEnd++;
-      }
-      
-      const comment = sequence.substring(i, commentEnd);
-      elements.push(comment);
-      console.log('Found comment:', comment); // Для отладки
-      i = commentEnd;
+    if (char === '(') {
+      inBrackets = true;
+      currentElement += char;
+    } else if (char === ')') {
+      inBrackets = false;
+      currentElement += char;
+    } else if (!inBrackets && /[cdefgabpCDEFGABP]/.test(char) && currentElement) {
+      elements.push(currentElement.trim());
+      currentElement = char;
     } else {
-      // Пропускаем переносы строк вне комментариев
-      if (sequence[i] === '\n' || sequence[i] === '\r') {
-        i++;
-        continue;
-      }
-      
-      // Обычная нота или пауза
-      let elementStart = i;
-      
-      // Читаем букву ноты или P для паузы
-      if (/[cdefgabpCDEFGABP]/.test(sequence[i])) {
-        i++;
-        
-        // Читаем только диез (бемоль убрали)
-        if (i < sequence.length && sequence[i] === '#') {
-          i++;
-        }
-        
-        // Читаем октаву
-        if (i < sequence.length && /\d/.test(sequence[i])) {
-          i++;
-        }
-        
-        // Читаем длительность в скобках
-        if (i < sequence.length && sequence[i] === '(') {
-          i++; // пропускаем открывающую скобку
-          while (i < sequence.length && sequence[i] !== ')') {
-            i++;
-          }
-          if (i < sequence.length && sequence[i] === ')') {
-            i++; // пропускаем закрывающую скобку
-          }
-        }
-        
-        const element = sequence.substring(elementStart, i);
-        if (element.trim()) {
-          elements.push(element.trim());
-        }
-      } else {
-        // Неизвестный символ - создаем ошибку
-        let elementStart = i;
-        while (i < sequence.length && !/[\s\n\r\u00A0]/.test(sequence[i])) {
-          i++;
-        }
-        const unknownElement = sequence.substring(elementStart, i);
-        if (unknownElement.trim()) {
-          elements.push(unknownElement.trim());
-        }
-      }
+      currentElement += char;
     }
   }
   
-  console.log('Parsed elements:', elements); // Для отладки
+  if (currentElement) {
+    elements.push(currentElement.trim());
+  }
   
   elements.forEach((element, index) => {
     const originalText = element;
@@ -115,70 +55,54 @@ export const parseNoteSequence = (sequence: string, t: (key: string) => string):
       startTime: currentTime,
       endTime: currentTime + 1000,
       originalText,
-      isError: false,
-      isComment: false
+      isError: false
     };
 
-    console.log('Processing element:', element); // Для отладки
-
-    // Проверяем комментарий ПЕРВЫМ
-    if (COMMENT_REGEX.test(element)) {
-      console.log('Found comment:', element); // Для отладки
-      parsedNote.isComment = true;
-      parsedNote.duration = 0; // Комментарии не занимают времени
-      parsedNote.endTime = currentTime;
-    }
     // Проверяем паузу
-    else {
-      const pauseMatch = element.match(PAUSE_REGEX);
-      if (pauseMatch) {
-        const durationStr = pauseMatch[2];
-        const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
-        
-        if (durationStr && (isNaN(duration) || duration <= 0)) {
+    const pauseMatch = element.match(PAUSE_REGEX);
+    if (pauseMatch) {
+      const durationStr = pauseMatch[2];
+      const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолт 1000мс
+      
+      if (durationStr && (isNaN(duration) || duration <= 0)) {
+        parsedNote.isError = true;
+        parsedNote.errorMessage = `${t('invalidPauseDuration')}: ${durationStr}`;
+      } else {
+        parsedNote.isPause = true;
+        parsedNote.duration = duration;
+        parsedNote.endTime = currentTime + duration;
+      }
+    } else {
+      // Проверяем ноту
+      const noteMatch = element.match(NOTE_REGEX);
+      if (noteMatch) {
+        const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
+        const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
+        const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолтная длительность 1000мс
+
+        // Проверяем октаву - только диапазон 0-8
+        if (octave < 0 || octave > 8) {
           parsedNote.isError = true;
-          parsedNote.errorMessage = `${t('invalidPauseDuration')}: ${durationStr}`;
+          parsedNote.errorMessage = `${t('invalidOctave')}: ${octave}. ${t('octaveRange')}`;
+        }
+        // Проверяем длительность
+        else if (durationStr && (isNaN(duration) || duration <= 0)) {
+          parsedNote.isError = true;
+          parsedNote.errorMessage = `${t('invalidDuration')}: ${durationStr}`;
         } else {
-          parsedNote.isPause = true;
+          parsedNote.note = noteName.toUpperCase() + (accidental || '');
+          parsedNote.octave = octave;
           parsedNote.duration = duration;
           parsedNote.endTime = currentTime + duration;
         }
       } else {
-        // Проверяем ноту
-        const noteMatch = element.match(NOTE_REGEX);
-        if (noteMatch) {
-          const [, noteName, accidental, octaveStr, , durationStr] = noteMatch;
-          const octave = octaveStr ? parseInt(octaveStr) : 4; // Дефолтная октава 4
-          const duration = durationStr ? parseFloat(durationStr) : 1000; // Дефолтная длительность 1000мс
-
-          // Проверяем октаву - только диапазон 0-8
-          if (octave < 0 || octave > 8) {
-            parsedNote.isError = true;
-            parsedNote.errorMessage = `${t('invalidOctave')}: ${octave}. ${t('octaveRange')}`;
-          }
-          // Проверяем длительность
-          else if (durationStr && (isNaN(duration) || duration <= 0)) {
-            parsedNote.isError = true;
-            parsedNote.errorMessage = `${t('invalidDuration')}: ${durationStr}`;
-          } else {
-            parsedNote.note = noteName.toUpperCase() + (accidental || '');
-            parsedNote.octave = octave;
-            parsedNote.duration = duration;
-            parsedNote.endTime = currentTime + duration;
-          }
-        } else {
-          parsedNote.isError = true;
-          parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
-        }
+        parsedNote.isError = true;
+        parsedNote.errorMessage = `${t('invalidFormat')}: ${element}`;
       }
     }
 
     notes.push(parsedNote);
-    
-    // Комментарии не влияют на время
-    if (!parsedNote.isComment) {
-      currentTime = parsedNote.endTime;
-    }
+    currentTime = parsedNote.endTime;
   });
 
   return notes;
@@ -270,8 +194,7 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1, instr
   let currentTime = 0;
   
   notes.forEach((note) => {
-    // Пропускаем комментарии при воспроизведении
-    if (!note.isPause && !note.isError && !note.isComment && note.note && note.octave !== undefined) {
+    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const noteName = `${note.note}${note.octave}`;
       const adjustedDuration = (note.duration / 1000) / speed; // Конвертируем мс в секунды
       
@@ -284,11 +207,7 @@ export const playSequence = async (notes: ParsedNote[], speed: number = 1, instr
       scheduledEvents.push(timeoutId);
       activeNotes.push(noteName);
     }
-    
-    // Комментарии не влияют на время воспроизведения
-    if (!note.isComment) {
-      currentTime += note.duration / speed;
-    }
+    currentTime += note.duration / speed;
   });
 };
 
@@ -307,7 +226,7 @@ export const stopSequence = () => {
   scheduledEvents = [];
 };
 
-// Обновленная функция экспорта с поддержкой двух последовательностей (комментарии игнорируются)
+// Обновленная функция экспорта с поддержкой двух последовательностей
 export const exportMidi = async (
   notes1: ParsedNote[], 
   notes2: ParsedNote[], 
@@ -316,16 +235,15 @@ export const exportMidi = async (
 ) => {
   const midi = new Midi();
   
-  // Создаем первый трек для первой последовательности (игнорируем комментарии)
-  const validNotes1 = notes1.filter(note => !note.isError && !note.isPause && !note.isComment);
-  if (validNotes1.length > 0) {
+  // Создаем первый трек для первой последовательности
+  if (notes1.length > 0 && notes1.some(note => !note.isError && !note.isPause)) {
     const track1 = midi.addTrack();
     track1.name = "Sequence 1";
     track1.channel = 0;
 
     let currentTime1 = 0;
     notes1.forEach((note) => {
-      if (!note.isPause && !note.isError && !note.isComment && note.note && note.octave !== undefined) {
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const noteName = `${note.note}${note.octave}`;
         const adjustedDuration = (note.duration / 1000) / speed;
         track1.addNote({
@@ -334,23 +252,19 @@ export const exportMidi = async (
           duration: adjustedDuration
         });
       }
-      // Комментарии не влияют на время в MIDI
-      if (!note.isComment) {
-        currentTime1 += note.duration / speed;
-      }
+      currentTime1 += note.duration / speed;
     });
   }
 
-  // Создаем второй трек для второй последовательности (игнорируем комментарии)
-  const validNotes2 = notes2.filter(note => !note.isError && !note.isPause && !note.isComment);
-  if (validNotes2.length > 0) {
+  // Создаем второй трек для второй последовательности
+  if (notes2.length > 0 && notes2.some(note => !note.isError && !note.isPause)) {
     const track2 = midi.addTrack();
     track2.name = "Sequence 2";
     track2.channel = 1;
 
     let currentTime2 = 0;
     notes2.forEach((note) => {
-      if (!note.isPause && !note.isError && !note.isComment && note.note && note.octave !== undefined) {
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
         const noteName = `${note.note}${note.octave}`;
         const adjustedDuration = (note.duration / 1000) / speed;
         track2.addNote({
@@ -359,10 +273,7 @@ export const exportMidi = async (
           duration: adjustedDuration
         });
       }
-      // Комментарии не влияют на время в MIDI
-      if (!note.isComment) {
-        currentTime2 += note.duration / speed;
-      }
+      currentTime2 += note.duration / speed;
     });
   }
 
@@ -421,35 +332,31 @@ const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
   URL.revokeObjectURL(url);
 };
 
-// Обновленная функция конвертации в MP3 с поддержкой двух последовательностей (комментарии игнорируются)
+// Обновленная функция конвертации в MP3 с поддержкой двух последовательностей
 const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: number) => {
   const audioContext = new AudioContext();
   const sampleRate = audioContext.sampleRate;
   
-  // Вычисляем общую длительность (игнорируем комментарии)
+  // Вычисляем общую длительность
   let totalDuration1 = 0;
   notes1.forEach(note => {
-    if (!note.isComment) {
-      totalDuration1 += (note.duration / 1000) / speed;
-    }
+    totalDuration1 += (note.duration / 1000) / speed;
   });
   
   let totalDuration2 = 0;
   notes2.forEach(note => {
-    if (!note.isComment) {
-      totalDuration2 += (note.duration / 1000) / speed;
-    }
+    totalDuration2 += (note.duration / 1000) / speed;
   });
   
   const totalDuration = Math.max(totalDuration1, totalDuration2);
   const bufferLength = Math.ceil(totalDuration * sampleRate);
   const audioBuffer = audioContext.createBuffer(2, bufferLength, sampleRate); // Стерео
   
-  // Первая последовательность в левый канал (игнорируем комментарии)
+  // Первая последовательность в левый канал
   const leftChannel = audioBuffer.getChannelData(0);
   let currentTime1 = 0;
   for (const note of notes1) {
-    if (!note.isPause && !note.isError && !note.isComment && note.note && note.octave !== undefined) {
+    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
       const noteDuration = (note.duration / 1000) / speed;
       const startSample = Math.floor((currentTime1 / 1000) * sampleRate);
@@ -461,17 +368,14 @@ const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: n
         leftChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
       }
     }
-    // Комментарии не влияют на время
-    if (!note.isComment) {
-      currentTime1 += note.duration / speed;
-    }
+    currentTime1 += note.duration / speed;
   }
   
-  // Вторая последовательность в правый канал (игнорируем комментарии)
+  // Вторая последовательность в правый канал
   const rightChannel = audioBuffer.getChannelData(1);
   let currentTime2 = 0;
   for (const note of notes2) {
-    if (!note.isPause && !note.isError && !note.isComment && note.note && note.octave !== undefined) {
+    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
       const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
       const noteDuration = (note.duration / 1000) / speed;
       const startSample = Math.floor((currentTime2 / 1000) * sampleRate);
@@ -483,10 +387,7 @@ const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: n
         rightChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
       }
     }
-    // Комментарии не влияют на время
-    if (!note.isComment) {
-      currentTime2 += note.duration / speed;
-    }
+    currentTime2 += note.duration / speed;
   }
   
   const wavBlob = audioBufferToWav(audioBuffer);
@@ -599,7 +500,7 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
 
-// Обновленная функция импорта с поддержкой разделения треков и пауз
+// Обновленная функция импорта с поддержкой разделения треков
 export const importMidi = async (file: File): Promise<{ sequence1: string, sequence2: string }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -619,55 +520,34 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Функция для конвертации трека в последовательность с паузами
-        const convertTrackToSequence = (track: any): string => {
-          // Сортируем ноты по времени начала
-          const sortedNotes = [...track.notes].sort((a, b) => a.time - b.time);
-          let sequence = '';
-          let currentTime = 0;
-          
-          sortedNotes.forEach((note, index) => {
-            const noteStartTime = note.time;
-            const noteDuration = note.duration;
-            
-            // Если есть пауза перед нотой
-            if (noteStartTime > currentTime) {
-              const pauseDuration = Math.round((noteStartTime - currentTime) * 1000);
-              if (pauseDuration > 0) {
-                if (pauseDuration === 1000) {
-                  sequence += 'P\u00A0';
-                } else {
-                  sequence += `P(${pauseDuration})\u00A0`;
-                }
-              }
-            }
-            
-            // Добавляем ноту
+        // Первый трек идет в первую последовательность
+        if (tracksWithNotes[0]) {
+          tracksWithNotes[0].notes.forEach((note) => {
             const noteName = note.name.replace(/(\d)/, '');
             const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            const duration = Math.round(noteDuration * 1000);
+            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
             
             let noteText = noteName;
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence += noteText + '\u00A0';
-            
-            // Обновляем текущее время
-            currentTime = noteStartTime + noteDuration;
+            sequence1 += noteText;
           });
-          
-          return sequence.trim();
-        };
-        
-        // Первый трек идет в первую последовательность
-        if (tracksWithNotes[0]) {
-          sequence1 = convertTrackToSequence(tracksWithNotes[0]);
         }
         
         // Второй трек (если есть) идет во вторую последовательность
         if (tracksWithNotes[1]) {
-          sequence2 = convertTrackToSequence(tracksWithNotes[1]);
+          tracksWithNotes[1].notes.forEach((note) => {
+            const noteName = note.name.replace(/(\d)/, '');
+            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
+            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
+            
+            let noteText = noteName;
+            if (octave !== 4) noteText += octave;
+            if (duration !== 1000) noteText += `(${duration})`;
+            
+            sequence2 += noteText;
+          });
         }
         
         resolve({ sequence1, sequence2 });

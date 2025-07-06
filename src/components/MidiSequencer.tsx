@@ -20,13 +20,12 @@ interface ParsedNote {
   originalText: string;
   isError: boolean;
   errorMessage?: string;
-  isComment?: boolean;
 }
 
 const MidiSequencer = () => {
   const { language, toggleLanguage, t } = useLanguage();
-  const [sequence, setSequence] = useState('f#5 e5 d5 c#5 b a b c#5 //мелодия//');
-  const [sequence2, setSequence2] = useState('d3(250) a3(250) d(250) f#(250) //аккомпанемент// a2(250) e3(250) a3(250) c#(250) b2(250) f#3(250) b3(250) d(250) f#2(250) c#(250) a3(250) c#(250) g2(250) d3(250) g3(250) b3(250) d2(250) a2(250) d3(250) f#3(250) g2(250) d3(250) g3(250) b3(250) a2(250) e3(250) a3(250) c#(250)');
+  const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
+  const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
   const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
   const [parsedNotes2, setParsedNotes2] = useState<ParsedNote[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -60,11 +59,10 @@ const MidiSequencer = () => {
     try {
       const notes = parseNoteSequence(sequence, t);
       const hasErrors = notes.some(note => note.isError);
-      const hasValidNotes = notes.some(note => !note.isError && !note.isPause && !note.isComment);
       return {
         notes,
         hasErrors,
-        hasValidSequence: !hasErrors && hasValidNotes
+        hasValidSequence: !hasErrors && notes.length > 0
       };
     } catch (error) {
       return { notes: [], hasErrors: true, hasValidSequence: false };
@@ -80,11 +78,10 @@ const MidiSequencer = () => {
     try {
       const notes = parseNoteSequence(sequence2, t);
       const hasErrors = notes.some(note => note.isError);
-      const hasValidNotes = notes.some(note => !note.isError && !note.isPause && !note.isComment);
       return {
         notes,
         hasErrors,
-        hasValidSequence: !hasErrors && hasValidNotes
+        hasValidSequence: !hasErrors && notes.length > 0
       };
     } catch (error) {
       return { notes: [], hasErrors: true, hasValidSequence: false };
@@ -100,8 +97,15 @@ const MidiSequencer = () => {
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const flatToSharp = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
     
     let normalizedNote = note;
+    if (note.includes('b')) {
+      const flatNote = note.slice(0, 2);
+      if (flatNote in flatToSharp) {
+        normalizedNote = flatToSharp[flatNote as keyof typeof flatToSharp];
+      }
+    }
     
     const noteIndex = notes.indexOf(normalizedNote);
     if (noteIndex === -1) return { note, octave };
@@ -144,8 +148,8 @@ const MidiSequencer = () => {
     let newSequence = '';
     
     for (const note of parsedNotes) {
-      if (note.isPause || note.isError || note.isComment) {
-        newSequence += note.originalText + '\u00A0';
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -153,11 +157,11 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText + '\u00A0';
+        newSequence += noteText;
       }
     }
     
-    setSequence(newSequence.trim());
+    setSequence(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
   };
 
@@ -170,8 +174,8 @@ const MidiSequencer = () => {
     let newSequence = '';
     
     for (const note of parsedNotes2) {
-      if (note.isPause || note.isError || note.isComment) {
-        newSequence += note.originalText + '\u00A0';
+      if (note.isPause || note.isError) {
+        newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
         
@@ -179,11 +183,11 @@ const MidiSequencer = () => {
         if (newOctave !== 4) noteText += newOctave;
         if (note.duration !== 1000) noteText += `(${note.duration})`;
         
-        newSequence += noteText + '\u00A0';
+        newSequence += noteText;
       }
     }
     
-    setSequence2(newSequence.trim());
+    setSequence2(newSequence);
     toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
   };
 
@@ -204,12 +208,12 @@ const MidiSequencer = () => {
         // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         if (newDuration !== 1000) {
-          newSequence += `P(${newDuration})\u00A0`;
+          newSequence += `P(${newDuration})`;
         } else {
-          newSequence += 'P\u00A0';
+          newSequence += 'P';
         }
-      } else if (note.isError || note.isComment) {
-        newSequence += note.originalText + '\u00A0';
+      } else if (note.isError) {
+        newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
         // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
@@ -218,14 +222,14 @@ const MidiSequencer = () => {
         if (note.octave !== 4) noteText += note.octave;
         if (newDuration !== 1000) noteText += `(${newDuration})`;
         
-        newSequence += noteText + '\u00A0';
+        newSequence += noteText;
       }
     }
     
     if (sequenceNumber === 1) {
-      setSequence(newSequence.trim());
+      setSequence(newSequence);
     } else {
-      setSequence2(newSequence.trim());
+      setSequence2(newSequence);
     }
     
     const multiplierText = multiplier === 0.5 ? 'x0.5' : 'x2';
@@ -263,7 +267,7 @@ const MidiSequencer = () => {
       
       timeoutRefs.current = [];
       
-      // Подсветка для первой последовательности (пропускаем комментарии)
+      // Подсветка для первой последовательности
       if (analysisResult.hasValidSequence) {
         let currentTime = 0;
         parsedNotes.forEach((note, index) => {
@@ -280,15 +284,11 @@ const MidiSequencer = () => {
           }, currentTime + adjustedDuration);
           
           timeoutRefs.current.push(startTimeout, endTimeout);
-          
-          // Комментарии не влияют на время
-          if (!note.isComment) {
-            currentTime += adjustedDuration;
-          }
+          currentTime += adjustedDuration;
         });
       }
       
-      // Подсветка для второй последовательности (пропускаем комментарии)
+      // Подсветка для второй последовательности
       if (analysisResult2.hasValidSequence) {
         let currentTime = 0;
         parsedNotes2.forEach((note, index) => {
@@ -305,19 +305,15 @@ const MidiSequencer = () => {
           }, currentTime + adjustedDuration);
           
           timeoutRefs.current.push(startTimeout, endTimeout);
-          
-          // Комментарии не влияют на время
-          if (!note.isComment) {
-            currentTime += adjustedDuration;
-          }
+          currentTime += adjustedDuration;
         });
       }
       
-      // Определяем максимальную длительность для завершения воспроизведения (игнорируем комментарии)
+      // Определяем максимальную длительность для завершения воспроизведения
       const maxDuration1 = analysisResult.hasValidSequence ? 
-        parsedNotes.reduce((sum, note) => sum + (note.isComment ? 0 : note.duration / speed[0]), 0) : 0;
+        parsedNotes.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
       const maxDuration2 = analysisResult2.hasValidSequence ? 
-        parsedNotes2.reduce((sum, note) => sum + (note.isComment ? 0 : note.duration / speed[0]), 0) : 0;
+        parsedNotes2.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
       
       const maxDuration = Math.max(maxDuration1, maxDuration2);
       
@@ -412,9 +408,7 @@ const MidiSequencer = () => {
 
     return notes.map((note, index) => {
       let className = '';
-      if (note.isComment) {
-        className = 'bg-blue-100 text-blue-800 italic';
-      } else if (note.isError) {
+      if (note.isError) {
         className = 'bg-red-200 text-red-800';
       } else if (currentIndex === index) {
         className = 'bg-green-200 text-green-800';
@@ -423,7 +417,6 @@ const MidiSequencer = () => {
       return (
         <span key={index} className={className} title={note.errorMessage}>
           {note.originalText}
-          {index < notes.length - 1 && !note.isComment && !notes[index + 1]?.isComment ? '\u00A0' : ''}
         </span>
       );
     });
@@ -453,9 +446,6 @@ const MidiSequencer = () => {
           </div>
           <p className="text-xs md:text-sm text-muted-foreground text-center">
             {t('description')}
-          </p>
-          <p className="text-xs text-muted-foreground text-center">
-            Комментарии: //текст комментария// - игнорируются при воспроизведении и сохранении
           </p>
         </CardHeader>
         <CardContent className="space-y-3 md:space-y-4">
@@ -523,20 +513,19 @@ const MidiSequencer = () => {
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
-               <Textarea
-                 id="sequence"
-                 value={sequence}
-                 onChange={(e) => setSequence(e.target.value)}
-                 placeholder="Последовательность 1"
-                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-                 style={{ whiteSpace: 'pre-wrap' }}
-               />
+              <Textarea
+                id="sequence"
+                value={sequence}
+                onChange={(e) => setSequence(e.target.value)}
+                placeholder="Последовательность 1"
+                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+              />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full" style={{ whiteSpace: 'pre-wrap' }}>
+            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
               {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
             </div>
           </div>
@@ -586,20 +575,19 @@ const MidiSequencer = () => {
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
               </div>
-               <Textarea
-                 id="sequence2"
-                 value={sequence2}
-                 onChange={(e) => setSequence2(e.target.value)}
-                 placeholder="Последовательность 2"
-                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-                 style={{ whiteSpace: 'pre-wrap' }}
-               />
+              <Textarea
+                id="sequence2"
+                value={sequence2}
+                onChange={(e) => setSequence2(e.target.value)}
+                placeholder="Последовательность 2"
+                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+              />
             </div>
           </div>
 
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm max-w-full" style={{ whiteSpace: 'pre-wrap' }}>
+            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
               {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
             </div>
           </div>
