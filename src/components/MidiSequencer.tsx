@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe } from 'lucide-react';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2 } from 'lucide-react';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -463,6 +463,20 @@ const MidiSequencer = () => {
                   onChange={handleFileImport}
                   className="hidden"
                 />
+                <Button
+                  onClick={() => {
+                    setSequence('');
+                    setSequence2('');
+                    toast.success('Поля очищены');
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs px-2 py-1 h-7 md:h-9 md:px-3 md:py-2"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  <span className="hidden sm:inline">Очистить</span>
+                  <span className="sm:hidden">Clear</span>
+                </Button>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="outline"
