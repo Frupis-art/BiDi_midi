@@ -35,6 +35,7 @@ const MidiSequencer = () => {
   const [speed, setSpeed] = useState([1]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [selectedInstrument, setSelectedInstrument] = useState('piano');
+  const [selectedInstrument2, setSelectedInstrument2] = useState('piano');
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -260,7 +261,7 @@ const MidiSequencer = () => {
       }
       
       if (analysisResult2.hasValidSequence) {
-        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument));
+        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument2));
       }
       
       await Promise.all(playPromises);
@@ -594,9 +595,27 @@ const MidiSequencer = () => {
 
           <div className="space-y-2">
             <label className="text-xs md:text-sm font-medium">
-              Инструмент
+              Инструмент для последовательности 1
             </label>
             <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {instruments.map((instrument) => (
+                  <SelectItem key={instrument.value} value={instrument.value}>
+                    {instrument.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs md:text-sm font-medium">
+              Инструмент для последовательности 2
+            </label>
+            <Select value={selectedInstrument2} onValueChange={setSelectedInstrument2}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
