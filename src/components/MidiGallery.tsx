@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowUp, ArrowDown, Upload, Download, RotateCcw } from 'lucide-react';
+import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface MidiFile {
@@ -30,6 +30,8 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadName, setUploadName] = useState('');
   const [uploadAuthor, setUploadAuthor] = useState('');
+  const [adminSequences, setAdminSequences] = useState<Record<string, string[]>>({});
+  const [adminUnlocked, setAdminUnlocked] = useState<Record<string, boolean>>({});
   const [currentUserId] = useState(() => {
     let userId = localStorage.getItem('midiGalleryUserId');
     if (!userId) {
@@ -38,6 +40,9 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     }
     return userId;
   });
+
+  // Секретная админская комбинация: 1↑, 2↓, 6↑, 4↓
+  const ADMIN_SEQUENCE = ['up', 'down', 'down', 'up', 'up', 'up', 'up', 'up', 'up', 'down', 'down', 'down', 'down'];
 
   // Загрузка файлов из localStorage
   useEffect(() => {
@@ -107,8 +112,65 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     toast.success(`Файл ${uploadName}_${uploadAuthor}_${fileId}.midi добавлен в галерею`);
   };
 
-  // Голосование за файл
+  // Обработка админской последовательности
+  const handleAdminSequence = (fileId: string, action: 'up' | 'down') => {
+    const currentSequence = adminSequences[fileId] || [];
+    const newSequence = [...currentSequence, action];
+    
+    // Проверяем, совпадает ли текущая последовательность с началом админской
+    const isValidSoFar = ADMIN_SEQUENCE.slice(0, newSequence.length).every(
+      (expectedAction, index) => expectedAction === newSequence[index]
+    );
+    
+    if (!isValidSoFar) {
+      // Неправильная последовательность - сбрасываем
+      setAdminSequences(prev => ({
+        ...prev,
+        [fileId]: []
+      }));
+      console.log(`[ADMIN] Неправильная последовательность для ${fileId}, сброс`);
+      return;
+    }
+    
+    // Обновляем последовательность
+    setAdminSequences(prev => ({
+      ...prev,
+      [fileId]: newSequence
+    }));
+    
+    console.log(`[ADMIN] Последовательность для ${fileId}: ${newSequence.join(', ')}`);
+    
+    // Проверяем, завершена ли админская последовательность
+    if (newSequence.length === ADMIN_SEQUENCE.length) {
+      console.log(`[ADMIN] Админский доступ разблокирован для файла ${fileId}`);
+      setAdminUnlocked(prev => ({
+        ...prev,
+        [fileId]: true
+      }));
+      
+      // Сбрасываем последовательность
+      setAdminSequences(prev => ({
+        ...prev,
+        [fileId]: []
+      }));
+      
+      toast.success('🔐 Админские права активированы', { duration: 2000 });
+      
+      // Автоматически скрываем админский доступ через 10 секунд
+      setTimeout(() => {
+        setAdminUnlocked(prev => ({
+          ...prev,
+          [fileId]: false
+        }));
+      }, 10000);
+    }
+  };
+
+  // Голосование за файл с админской последовательностью
   const handleVote = (fileId: string, voteType: 'up' | 'down') => {
+    // Сначала обрабатываем админскую последовательность
+    handleAdminSequence(fileId, voteType);
+    
     const updatedFiles = midiFiles.map(file => {
       if (file.id === fileId) {
         const newUserVotes = { ...file.userVotes };
@@ -143,6 +205,33 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     });
     
     saveFiles(updatedFiles);
+  };
+
+  // Удаление файла (админская функция)
+  const handleDeleteFile = (fileId: string) => {
+    const fileToDelete = midiFiles.find(f => f.id === fileId);
+    if (!fileToDelete) return;
+    
+    const confirmMessage = `Удалить файл "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}" из галереи?`;
+    if (window.confirm(confirmMessage)) {
+      const updatedFiles = midiFiles.filter(file => file.id !== fileId);
+      saveFiles(updatedFiles);
+      
+      // Очищаем админское состояние для этого файла
+      setAdminUnlocked(prev => {
+        const newState = { ...prev };
+        delete newState[fileId];
+        return newState;
+      });
+      
+      setAdminSequences(prev => {
+        const newState = { ...prev };
+        delete newState[fileId];
+        return newState;
+      });
+      
+      toast.success(`Файл ${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id} удален`);
+    }
   };
 
   // Загрузка файла в последовательности
@@ -243,6 +332,19 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                   >
                     <Download className="w-3 h-3" />
                   </Button>
+                  
+                  {/* Админская кнопка удаления */}
+                  {adminUnlocked[file.id] && (
+                    <Button
+                      onClick={() => handleDeleteFile(file.id)}
+                      variant="destructive"
+                      size="sm"
+                      title="🔐 Удалить файл (АДМИН)"
+                      className="animate-pulse"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
 
                 {/* Название файла */}
