@@ -90,7 +90,9 @@ const translations: Translations = {
     higherToLower: 'Больше→Меньше',
     lowerToHigher: 'Меньше→Больше',
     newerToOlder: 'Новее→Старее',
-    olderToNewer: 'Старее→Новее'
+    olderToNewer: 'Старее→Новее',
+    // Исправление заглавной буквы
+    Sequence: 'Последовательность'
   },
   en: {
     title: 'BiDi MIDI',
@@ -174,7 +176,9 @@ const translations: Translations = {
     higherToLower: 'Higher→Lower',
     lowerToHigher: 'Lower→Higher',
     newerToOlder: 'Newer→Older',
-    olderToNewer: 'Older→Newer'
+    olderToNewer: 'Older→Newer',
+    // Capital letter fix
+    Sequence: 'Sequence'
   }
 };
 
