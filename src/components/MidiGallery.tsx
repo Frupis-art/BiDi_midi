@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useLanguage } from '@/hooks/useLanguage';
 
 export interface MidiFile {
   id: string;
@@ -25,7 +24,6 @@ interface MidiGalleryProps {
 }
 
 const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
-  const { t } = useLanguage();
   const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
   const [sortBy, setSortBy] = useState<'rating' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -72,24 +70,24 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   // Загрузка файла в галерею
   const handleUploadToGallery = (sequence1: string, sequence2: string) => {
     if (!uploadName.trim() || !uploadAuthor.trim()) {
-      toast.error(t('fillAllFields'));
+      toast.error('Заполните все поля');
       return;
     }
 
     if (uploadName.length < 3 || uploadName.length > 12) {
-      toast.error(t('titleLength'));
+      toast.error('Название должно быть от 3 до 12 символов');
       return;
     }
 
     if (uploadAuthor.length < 3 || uploadAuthor.length > 12) {
-      toast.error(t('authorLength'));
+      toast.error('Автор должен быть от 3 до 12 символов');
       return;
     }
 
     // Проверка на допустимые символы (буквы, цифры, пробелы, дефисы)
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(uploadName) || !validChars.test(uploadAuthor)) {
-      toast.error(t('validCharsOnly'));
+      toast.error('Используйте только буквы, цифры, пробелы и дефисы');
       return;
     }
 
@@ -111,7 +109,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     setUploadName('');
     setUploadAuthor('');
     setShowUploadDialog(false);
-    toast.success(`${uploadName}_${uploadAuthor}_${fileId}.midi ${t('fileAdded')}`);
+    toast.success(`Файл ${uploadName}_${uploadAuthor}_${fileId}.midi добавлен в галерею`);
   };
 
   // Обработка админской последовательности
@@ -156,7 +154,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
         [fileId]: []
       }));
       
-      toast.success(t('adminRightsActivated'), { duration: 2000 });
+      toast.success('🔐 Админские права активированы', { duration: 2000 });
       
       // Автоматически скрываем админский доступ через 10 секунд
       setTimeout(() => {
@@ -216,14 +214,14 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
       try {
         const files = JSON.parse(savedFiles);
         setMidiFiles(files);
-        toast.success(t('galleryRefreshed'));
+        toast.success('Галерея обновлена');
       } catch (error) {
         console.error('Error refreshing gallery:', error);
-        toast.error(t('refreshError'));
+        toast.error('Ошибка при обновлении галереи');
       }
     } else {
       setMidiFiles([]);
-      toast.success(t('galleryRefreshed'));
+      toast.success('Галерея обновлена');
     }
   };
 
@@ -232,7 +230,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     const fileToDelete = midiFiles.find(f => f.id === fileId);
     if (!fileToDelete) return;
     
-    const confirmMessage = `${t('confirmDelete')} "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}"?`;
+    const confirmMessage = `Удалить файл "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}" из галереи?`;
     if (window.confirm(confirmMessage)) {
       const updatedFiles = midiFiles.filter(file => file.id !== fileId);
       saveFiles(updatedFiles);
@@ -250,16 +248,16 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
         return newState;
       });
       
-      toast.success(`${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id} ${t('fileDeleted')}`);
+      toast.success(`Файл ${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id} удален`);
     }
   };
 
   // Загрузка файла в последовательности
   const handleLoadFile = (file: MidiFile) => {
-    const confirmMessage = t('confirmLoad');
+    const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
     if (window.confirm(confirmMessage)) {
       onLoadFile(file.sequence1, file.sequence2);
-      toast.success(`${t('fileLoaded')} ${file.name}_${file.author}_${file.id}`);
+      toast.success(`Загружен файл: ${file.name}_${file.author}_${file.id}`);
     }
   };
 
@@ -277,10 +275,10 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
         format: 'midi' as const
       });
       
-      toast.success(`${t('downloading')} ${file.name}_${file.author}_${file.id}.midi`);
+      toast.success(`Скачивается: ${file.name}_${file.author}_${file.id}.midi`);
     } catch (error) {
       console.error('Ошибка при скачивании MIDI:', error);
-      toast.error(t('exportError'));
+      toast.error('Ошибка при экспорте MIDI файла');
     }
   };
 
@@ -301,16 +299,16 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle className="text-xl">{t('galleryTitle')}</CardTitle>
+        <CardTitle className="text-xl">Галерея MIDI</CardTitle>
         <div className="flex items-center gap-2">
-          <span className="text-sm">{t('sortBy')}</span>
+          <span className="text-sm">Упорядочить по:</span>
           <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="rating">{t('rating')}</SelectItem>
-              <SelectItem value="date">{t('date')}</SelectItem>
+              <SelectItem value="rating">Рейтинг</SelectItem>
+              <SelectItem value="date">Новое</SelectItem>
             </SelectContent>
           </Select>
           <Button
@@ -321,8 +319,8 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
           >
             <RotateCcw className="w-3 h-3" />
             {sortOrder === 'desc' ? 
-              (sortBy === 'rating' ? t('higherToLower') : t('newerToOlder')) : 
-              (sortBy === 'rating' ? t('lowerToHigher') : t('olderToNewer'))
+              (sortBy === 'rating' ? 'Больше→Меньше' : 'Новее→Старее') : 
+              (sortBy === 'rating' ? 'Меньше→Больше' : 'Старее→Новее')
             }
           </Button>
           <Button
@@ -330,16 +328,16 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
             variant="outline"
             size="sm"
             className="flex items-center gap-1"
-            title={t('refresh')}
+            title="Обновить галерею"
           >
             <RotateCcw className="w-3 h-3" />
-            {t('refresh')}
+            Обновить
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {sortedFiles.length === 0 ? (
-          <p className="text-muted-foreground text-center py-4">{t('galleryEmpty')}</p>
+          <p className="text-muted-foreground text-center py-4">Галерея пуста</p>
         ) : (
           <div className="space-y-2">
             {sortedFiles.map((file) => (
@@ -350,7 +348,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                     onClick={() => handleLoadFile(file)}
                     variant="outline"
                     size="sm"
-                    title={t('loadToSequences')}
+                    title="Подгрузить в последовательности"
                   >
                     <Upload className="w-3 h-3" />
                   </Button>
@@ -358,7 +356,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                     onClick={() => handleDownloadFile(file)}
                     variant="outline"
                     size="sm"
-                    title={t('downloadMidi')}
+                    title="Скачать MIDI файл"
                   >
                     <Download className="w-3 h-3" />
                   </Button>
@@ -369,7 +367,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                       onClick={() => handleDeleteFile(file.id)}
                       variant="destructive"
                       size="sm"
-                      title={`🔐 ${t('deleteFile')}`}
+                      title="🔐 Удалить файл (АДМИН)"
                       className="animate-pulse"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -421,26 +419,26 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('addToGallery')}</DialogTitle>
+              <DialogTitle>Добавить в галерею</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="upload-name">{t('enterTitle')}</Label>
+                <Label htmlFor="upload-name">Введите название (3-8 символов)</Label>
                 <Input
                   id="upload-name"
                   value={uploadName}
                   onChange={(e) => setUploadName(e.target.value)}
-                  placeholder={t('titlePlaceholder')}
+                  placeholder="Название произведения"
                   maxLength={8}
                 />
               </div>
               <div>
-                <Label htmlFor="upload-author">{t('enterAuthor')}</Label>
+                <Label htmlFor="upload-author">Введите автора (3-8 символов)</Label>
                 <Input
                   id="upload-author"
                   value={uploadAuthor}
                   onChange={(e) => setUploadAuthor(e.target.value)}
-                  placeholder={t('authorPlaceholder')}
+                  placeholder="Автор произведения"
                   maxLength={8}
                 />
               </div>
@@ -450,7 +448,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                   variant="outline"
                   className="flex-1"
                 >
-                  {t('cancel')}
+                  Отмена
                 </Button>
                 <Button
                   onClick={() => {
@@ -459,7 +457,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                   className="flex-1"
                   disabled={!uploadName.trim() || !uploadAuthor.trim()}
                 >
-                  {t('add')}
+                  Добавить
                 </Button>
               </div>
             </div>

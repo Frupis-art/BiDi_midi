@@ -46,15 +46,15 @@ const MidiSequencer = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const instruments = [
-    { value: 'piano', label: t('piano') },
-    { value: 'clarinet', label: t('clarinet') },
-    { value: 'trumpet', label: t('trumpet') },
-    { value: 'flute', label: t('flute') },
-    { value: 'cello', label: t('cello') },
-    { value: 'bassoon', label: t('bassoon') },
-    { value: 'oboe', label: t('oboe') },
-    { value: 'violin', label: t('violin') },
-    { value: 'guitar', label: t('guitar') }
+    { value: 'piano', label: 'Фортепиано' },
+    { value: 'clarinet', label: 'Кларнет' },
+    { value: 'trumpet', label: 'Труба' },
+    { value: 'flute', label: 'Флейта' },
+    { value: 'cello', label: 'Виолончель' },
+    { value: 'bassoon', label: 'Фагот' },
+    { value: 'oboe', label: 'Гобой' },
+    { value: 'violin', label: 'Скрипка' },
+    { value: 'guitar', label: 'Гитара' }
   ];
 
   // Анализ в реальном времени для первой последовательности
@@ -169,7 +169,7 @@ const MidiSequencer = () => {
     }
     
     setSequence(newSequence);
-    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (${t('sequence')} 1)`);
+    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
   };
 
   const transposeSequence2 = (semitones: number) => {
@@ -195,7 +195,7 @@ const MidiSequencer = () => {
     }
     
     setSequence2(newSequence);
-    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (${t('sequence')} 2)`);
+    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
   };
 
   const multiplyDuration = (multiplier: number, sequenceNumber: number) => {
@@ -240,7 +240,7 @@ const MidiSequencer = () => {
     }
     
     const multiplierText = multiplier === 0.5 ? 'x0.5' : 'x2';
-    toast.success(`${t('durationChanged')} ${multiplierText} (${t('sequence')} ${sequenceNumber})`);
+    toast.success(`Длительность изменена ${multiplierText} (последовательность ${sequenceNumber})`);
   };
 
   const handlePlay = async () => {
@@ -439,19 +439,19 @@ const MidiSequencer = () => {
     
     if (!galleryName.trim() || !galleryAuthor.trim()) {
       console.log('Ошибка: пустые поля');
-      toast.error(t('fillAllFields'));
+      toast.error('Заполните все поля');
       return;
     }
 
     if (galleryName.length < 3 || galleryName.length > 12) {
       console.log('Ошибка: неправильная длина названия');
-      toast.error(t('titleLength'));
+      toast.error('Название должно быть от 3 до 12 символов');
       return;
     }
 
     if (galleryAuthor.length < 3 || galleryAuthor.length > 12) {
       console.log('Ошибка: неправильная длина автора');
-      toast.error(t('authorLength'));
+      toast.error('Автор должен быть от 3 до 12 символов');
       return;
     }
 
@@ -459,7 +459,7 @@ const MidiSequencer = () => {
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
       console.log('Ошибка: недопустимые символы');
-      toast.error(t('validCharsOnly'));
+      toast.error('Используйте только буквы, цифры, пробелы и дефисы');
       return;
     }
 
@@ -485,7 +485,7 @@ const MidiSequencer = () => {
       // Проверяем доступность localStorage
       if (typeof(Storage) === "undefined") {
         console.log('Ошибка: localStorage недоступен');
-        toast.error('Storage unavailable in your browser');
+        toast.error('Хранилище недоступно в вашем браузере');
         return;
       }
 
@@ -505,7 +505,7 @@ const MidiSequencer = () => {
       console.log('Размер данных (KB):', (dataSize / 1024).toFixed(2));
       
       if (dataSize > 4 * 1024 * 1024) { // 4MB предел
-        toast.error('Gallery full (~4MB limit). Delete old files.');
+        toast.error('Галерея переполнена (лимит ~4MB). Удалите старые файлы.');
         return;
       }
       
@@ -518,7 +518,7 @@ const MidiSequencer = () => {
       setShowGalleryDialog(false);
       
       const fileName = `${galleryName}_${galleryAuthor}_${fileId}.midi`;
-      toast.success(`${fileName} ${t('fileAdded')}`);
+      toast.success(`Файл ${fileName} добавлен в галерею`);
       console.log('Успешно добавлен файл:', fileName);
       
     } catch (error) {
@@ -577,15 +577,15 @@ const MidiSequencer = () => {
                   onClick={() => {
                     setSequence('');
                     setSequence2('');
-                    toast.success(t('fieldsCleared'));
+                    toast.success('Поля очищены');
                   }}
                   variant="outline"
                   size="sm"
                   className="text-xs px-2 py-1 h-7 md:h-9 md:px-3 md:py-2"
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">{t('clear')}</span>
-                  <span className="sm:hidden">{t('clear')}</span>
+                  <span className="hidden sm:inline">Очистить</span>
+                  <span className="sm:hidden">Clear</span>
                 </Button>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
@@ -624,7 +624,7 @@ const MidiSequencer = () => {
                   disabled={!analysisResult.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
-                  title={t('decreaseDuration')}
+                  title="Уменьшить длительность x0.5"
                 >
                   <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
@@ -633,7 +633,7 @@ const MidiSequencer = () => {
                   disabled={!analysisResult.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
-                  title={t('increaseDuration')}
+                  title="Увеличить длительность x2"
                 >
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
@@ -642,7 +642,7 @@ const MidiSequencer = () => {
                 id="sequence"
                 value={sequence}
                 onChange={(e) => setSequence(e.target.value)}
-                placeholder={`${t('sequence')} 1`}
+                placeholder="Последовательность 1"
                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
             </div>
@@ -658,7 +658,7 @@ const MidiSequencer = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="sequence2" className="text-xs md:text-sm font-medium">
-                {t('sequence')} 2
+                Последовательность 2
               </label>
             </div>
             <div className="flex gap-1 md:gap-2">
@@ -686,7 +686,7 @@ const MidiSequencer = () => {
                   disabled={!analysisResult2.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
-                  title={t('decreaseDuration')}
+                  title="Уменьшить длительность x0.5"
                 >
                   <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
@@ -695,7 +695,7 @@ const MidiSequencer = () => {
                   disabled={!analysisResult2.hasValidSequence}
                   className="w-6 h-6 md:w-8 md:h-8 p-0"
                   variant="outline"
-                  title={t('increaseDuration')}
+                  title="Увеличить длительность x2"
                 >
                   <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Button>
@@ -704,7 +704,7 @@ const MidiSequencer = () => {
                 id="sequence2"
                 value={sequence2}
                 onChange={(e) => setSequence2(e.target.value)}
-                placeholder={`${t('sequence')} 2`}
+                placeholder="Последовательность 2"
                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
             </div>
@@ -719,7 +719,7 @@ const MidiSequencer = () => {
 
           <div className="space-y-2">
             <label className="text-xs md:text-sm font-medium">
-              {t('instrumentSequence1')}
+              Инструмент для последовательности 1
             </label>
             <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
               <SelectTrigger className="w-full">
@@ -737,7 +737,7 @@ const MidiSequencer = () => {
 
           <div className="space-y-2">
             <label className="text-xs md:text-sm font-medium">
-              {t('instrumentSequence2')}
+              Инструмент для последовательности 2
             </label>
             <Select value={selectedInstrument2} onValueChange={setSelectedInstrument2}>
               <SelectTrigger className="w-full">
@@ -818,33 +818,33 @@ const MidiSequencer = () => {
                   disabled={!hasValidSequence}
                   className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
                   variant="outline"
-                  title={t('addToGallery')}
+                  title="Добавить в галерею"
                 >
                   <Heart className="w-4 h-4 md:w-5 md:h-5" />
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{t('addToGallery')}</DialogTitle>
+                  <DialogTitle>Добавить в галерею</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="gallery-name">{t('enterTitle')}</Label>
+                    <Label htmlFor="gallery-name">Введите название (3-12 символов)</Label>
                     <Input
                       id="gallery-name"
                       value={galleryName}
                       onChange={(e) => setGalleryName(e.target.value)}
-                      placeholder={t('titlePlaceholder')}
+                      placeholder="Название произведения"
                       maxLength={12}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-author">{t('enterAuthor')}</Label>
+                    <Label htmlFor="gallery-author">Введите автора (3-12 символов)</Label>
                     <Input
                       id="gallery-author"
                       value={galleryAuthor}
                       onChange={(e) => setGalleryAuthor(e.target.value)}
-                      placeholder={t('authorPlaceholder')}
+                      placeholder="Автор произведения"
                       maxLength={12}
                     />
                   </div>
@@ -854,14 +854,14 @@ const MidiSequencer = () => {
                       variant="outline"
                       className="flex-1"
                     >
-                      {t('cancel')}
+                      Отмена
                     </Button>
                     <Button
                       onClick={handleGalleryUpload}
                       className="flex-1"
                       disabled={!galleryName.trim() || !galleryAuthor.trim()}
                     >
-                      {t('add')}
+                      Добавить
                     </Button>
                   </div>
                 </div>
