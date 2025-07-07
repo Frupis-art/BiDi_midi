@@ -443,15 +443,15 @@ const MidiSequencer = () => {
       return;
     }
 
-    if (galleryName.length < 3 || galleryName.length > 8) {
+    if (galleryName.length < 3 || galleryName.length > 12) {
       console.log('Ошибка: неправильная длина названия');
-      toast.error('Название должно быть от 3 до 8 символов');
+      toast.error('Название должно быть от 3 до 12 символов');
       return;
     }
 
-    if (galleryAuthor.length < 3 || galleryAuthor.length > 8) {
+    if (galleryAuthor.length < 3 || galleryAuthor.length > 12) {
       console.log('Ошибка: неправильная длина автора');
-      toast.error('Автор должен быть от 3 до 8 символов');
+      toast.error('Автор должен быть от 3 до 12 символов');
       return;
     }
 
@@ -829,23 +829,23 @@ const MidiSequencer = () => {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="gallery-name">Введите название (3-8 символов)</Label>
+                    <Label htmlFor="gallery-name">Введите название (3-12 символов)</Label>
                     <Input
                       id="gallery-name"
                       value={galleryName}
                       onChange={(e) => setGalleryName(e.target.value)}
                       placeholder="Название произведения"
-                      maxLength={8}
+                      maxLength={12}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-author">Введите автора (3-8 символов)</Label>
+                    <Label htmlFor="gallery-author">Введите автора (3-12 символов)</Label>
                     <Input
                       id="gallery-author"
                       value={galleryAuthor}
                       onChange={(e) => setGalleryAuthor(e.target.value)}
                       placeholder="Автор произведения"
-                      maxLength={8}
+                      maxLength={12}
                     />
                   </div>
                   <div className="flex gap-2">

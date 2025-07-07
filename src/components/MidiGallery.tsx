@@ -25,7 +25,7 @@ interface MidiGalleryProps {
 
 const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
-  const [sortBy, setSortBy] = useState<'rating' | 'date'>('rating');
+  const [sortBy, setSortBy] = useState<'rating' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadName, setUploadName] = useState('');
@@ -74,13 +74,13 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
       return;
     }
 
-    if (uploadName.length < 3 || uploadName.length > 8) {
-      toast.error('Название должно быть от 3 до 8 символов');
+    if (uploadName.length < 3 || uploadName.length > 12) {
+      toast.error('Название должно быть от 3 до 12 символов');
       return;
     }
 
-    if (uploadAuthor.length < 3 || uploadAuthor.length > 8) {
-      toast.error('Автор должен быть от 3 до 8 символов');
+    if (uploadAuthor.length < 3 || uploadAuthor.length > 12) {
+      toast.error('Автор должен быть от 3 до 12 символов');
       return;
     }
 
@@ -207,6 +207,24 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
     saveFiles(updatedFiles);
   };
 
+  // Обновление галереи
+  const handleRefreshGallery = () => {
+    const savedFiles = localStorage.getItem('midiGalleryFiles');
+    if (savedFiles) {
+      try {
+        const files = JSON.parse(savedFiles);
+        setMidiFiles(files);
+        toast.success('Галерея обновлена');
+      } catch (error) {
+        console.error('Error refreshing gallery:', error);
+        toast.error('Ошибка при обновлении галереи');
+      }
+    } else {
+      setMidiFiles([]);
+      toast.success('Галерея обновлена');
+    }
+  };
+
   // Удаление файла (админская функция)
   const handleDeleteFile = (fileId: string) => {
     const fileToDelete = midiFiles.find(f => f.id === fileId);
@@ -304,6 +322,16 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
               (sortBy === 'rating' ? 'Больше→Меньше' : 'Новее→Старее') : 
               (sortBy === 'rating' ? 'Меньше→Больше' : 'Старее→Новее')
             }
+          </Button>
+          <Button
+            onClick={handleRefreshGallery}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1"
+            title="Обновить галерею"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Обновить
           </Button>
         </div>
       </CardHeader>
