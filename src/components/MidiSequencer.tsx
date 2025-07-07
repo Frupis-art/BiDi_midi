@@ -431,17 +431,26 @@ const MidiSequencer = () => {
 
   // Функция добавления в галерею
   const handleGalleryUpload = () => {
+    console.log('handleGalleryUpload вызвана');
+    console.log('galleryName:', galleryName);
+    console.log('galleryAuthor:', galleryAuthor);
+    console.log('sequence:', sequence);
+    console.log('sequence2:', sequence2);
+    
     if (!galleryName.trim() || !galleryAuthor.trim()) {
+      console.log('Ошибка: пустые поля');
       toast.error('Заполните все поля');
       return;
     }
 
     if (galleryName.length < 3 || galleryName.length > 8) {
+      console.log('Ошибка: неправильная длина названия');
       toast.error('Название должно быть от 3 до 8 символов');
       return;
     }
 
     if (galleryAuthor.length < 3 || galleryAuthor.length > 8) {
+      console.log('Ошибка: неправильная длина автора');
       toast.error('Автор должен быть от 3 до 8 символов');
       return;
     }
@@ -449,34 +458,73 @@ const MidiSequencer = () => {
     // Проверка на допустимые символы
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
+      console.log('Ошибка: недопустимые символы');
       toast.error('Используйте только буквы, цифры, пробелы и дефисы');
       return;
     }
 
-    // Генерируем уникальный ID
-    const fileId = Math.random().toString(36).substr(2, 5).toUpperCase();
-    
-    // Создаем объект файла
-    const newFile = {
-      id: fileId,
-      name: galleryName.trim(),
-      author: galleryAuthor.trim(),
-      sequence1: sequence,
-      sequence2: sequence2,
-      rating: 0,
-      userVotes: {},
-      createdAt: Date.now()
-    };
+    try {
+      // Генерируем уникальный ID
+      const fileId = Math.random().toString(36).substr(2, 5).toUpperCase();
+      console.log('Generated fileId:', fileId);
+      
+      // Создаем объект файла
+      const newFile = {
+        id: fileId,
+        name: galleryName.trim(),
+        author: galleryAuthor.trim(),
+        sequence1: sequence,
+        sequence2: sequence2,
+        rating: 0,
+        userVotes: {},
+        createdAt: Date.now()
+      };
 
-    // Сохраняем в localStorage
-    const existingFiles = JSON.parse(localStorage.getItem('midiGalleryFiles') || '[]');
-    const updatedFiles = [...existingFiles, newFile];
-    localStorage.setItem('midiGalleryFiles', JSON.stringify(updatedFiles));
-    
-    setGalleryName('');
-    setGalleryAuthor('');
-    setShowGalleryDialog(false);
-    toast.success(`Файл ${galleryName}_${galleryAuthor}_${fileId}.midi добавлен в галерею`);
+      console.log('newFile объект:', newFile);
+
+      // Проверяем доступность localStorage
+      if (typeof(Storage) === "undefined") {
+        console.log('Ошибка: localStorage недоступен');
+        toast.error('Хранилище недоступно в вашем браузере');
+        return;
+      }
+
+      // Получаем существующие файлы
+      const existingFilesStr = localStorage.getItem('midiGalleryFiles');
+      console.log('Существующие файлы (строка):', existingFilesStr);
+      
+      const existingFiles = existingFilesStr ? JSON.parse(existingFilesStr) : [];
+      console.log('Существующие файлы (массив):', existingFiles);
+      
+      const updatedFiles = [...existingFiles, newFile];
+      console.log('Обновленный массив файлов:', updatedFiles);
+      
+      // Проверяем размер перед сохранением
+      const dataSize = JSON.stringify(updatedFiles).length;
+      console.log('Размер данных (символы):', dataSize);
+      console.log('Размер данных (KB):', (dataSize / 1024).toFixed(2));
+      
+      if (dataSize > 4 * 1024 * 1024) { // 4MB предел
+        toast.error('Галерея переполнена (лимит ~4MB). Удалите старые файлы.');
+        return;
+      }
+      
+      // Сохраняем в localStorage
+      localStorage.setItem('midiGalleryFiles', JSON.stringify(updatedFiles));
+      console.log('Файл сохранен в localStorage');
+      
+      setGalleryName('');
+      setGalleryAuthor('');
+      setShowGalleryDialog(false);
+      
+      const fileName = `${galleryName}_${galleryAuthor}_${fileId}.midi`;
+      toast.success(`Файл ${fileName} добавлен в галерею`);
+      console.log('Успешно добавлен файл:', fileName);
+      
+    } catch (error) {
+      console.error('Ошибка при сохранении в галерею:', error);
+      toast.error('Ошибка при сохранении: ' + (error as Error).message);
+    }
   };
 
   // Функция загрузки файла из галереи
