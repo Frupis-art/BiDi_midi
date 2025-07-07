@@ -545,7 +545,7 @@ const MidiSequencer = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-center text-xl md:text-2xl flex-1">{t('title')}</CardTitle>
-              {t('Sequence')} 1
+            <Button
               onClick={toggleLanguage}
               variant="outline"
               size="sm"
@@ -658,7 +658,7 @@ const MidiSequencer = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="sequence2" className="text-xs md:text-sm font-medium">
-                {t('Sequence')} 2
+                {t('sequence')} 2
               </label>
             </div>
             <div className="flex gap-1 md:gap-2">
