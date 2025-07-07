@@ -155,18 +155,24 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   };
 
   // Скачивание MIDI файла
-  const handleDownloadFile = (file: MidiFile) => {
-    const fileName = `${file.name}_${file.author}_${file.id}.midi`;
-    // Простая имитация скачивания (в реальном приложении здесь был бы export в MIDI)
-    const fileContent = `Sequence 1: ${file.sequence1}\nSequence 2: ${file.sequence2}`;
-    const blob = new Blob([fileContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(`Скачивается: ${fileName}`);
+  const handleDownloadFile = async (file: MidiFile) => {
+    try {
+      // Парсим последовательности для экспорта
+      const { parseNoteSequence } = await import('@/utils/midiUtils');
+      const parsedNotes1 = parseNoteSequence(file.sequence1, (key: string) => key);
+      const parsedNotes2 = parseNoteSequence(file.sequence2, (key: string) => key);
+      
+      // Экспортируем как MIDI
+      const { exportMidi } = await import('@/utils/midiUtils');
+      await exportMidi(parsedNotes1, parsedNotes2, 1, { 
+        format: 'midi' as const
+      });
+      
+      toast.success(`Скачивается: ${file.name}_${file.author}_${file.id}.midi`);
+    } catch (error) {
+      console.error('Ошибка при скачивании MIDI:', error);
+      toast.error('Ошибка при экспорте MIDI файла');
+    }
   };
 
   // Сортировка файлов
