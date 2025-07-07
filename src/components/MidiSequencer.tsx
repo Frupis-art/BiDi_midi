@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, Heart } from 'lucide-react';
+import MidiGallery from './MidiGallery';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -36,6 +39,9 @@ const MidiSequencer = () => {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [selectedInstrument, setSelectedInstrument] = useState('piano');
   const [selectedInstrument2, setSelectedInstrument2] = useState('piano');
+  const [showGalleryDialog, setShowGalleryDialog] = useState(false);
+  const [galleryName, setGalleryName] = useState('');
+  const [galleryAuthor, setGalleryAuthor] = useState('');
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -423,6 +429,62 @@ const MidiSequencer = () => {
     });
   };
 
+  // Функция добавления в галерею
+  const handleGalleryUpload = () => {
+    if (!galleryName.trim() || !galleryAuthor.trim()) {
+      toast.error('Заполните все поля');
+      return;
+    }
+
+    if (galleryName.length < 3 || galleryName.length > 8) {
+      toast.error('Название должно быть от 3 до 8 символов');
+      return;
+    }
+
+    if (galleryAuthor.length < 3 || galleryAuthor.length > 8) {
+      toast.error('Автор должен быть от 3 до 8 символов');
+      return;
+    }
+
+    // Проверка на допустимые символы
+    const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
+    if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
+      toast.error('Используйте только буквы, цифры, пробелы и дефисы');
+      return;
+    }
+
+    // Генерируем уникальный ID
+    const fileId = Math.random().toString(36).substr(2, 5).toUpperCase();
+    
+    // Создаем объект файла
+    const newFile = {
+      id: fileId,
+      name: galleryName.trim(),
+      author: galleryAuthor.trim(),
+      sequence1: sequence,
+      sequence2: sequence2,
+      rating: 0,
+      userVotes: {},
+      createdAt: Date.now()
+    };
+
+    // Сохраняем в localStorage
+    const existingFiles = JSON.parse(localStorage.getItem('midiGalleryFiles') || '[]');
+    const updatedFiles = [...existingFiles, newFile];
+    localStorage.setItem('midiGalleryFiles', JSON.stringify(updatedFiles));
+    
+    setGalleryName('');
+    setGalleryAuthor('');
+    setShowGalleryDialog(false);
+    toast.success(`Файл ${galleryName}_${galleryAuthor}_${fileId}.midi добавлен в галерею`);
+  };
+
+  // Функция загрузки файла из галереи
+  const handleLoadFromGallery = (sequence1: string, sequence2: string) => {
+    setSequence(sequence1);
+    setSequence2(sequence2);
+  };
+
   useEffect(() => {
     return () => {
       stopPlayback();
@@ -701,6 +763,62 @@ const MidiSequencer = () => {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={showGalleryDialog} onOpenChange={setShowGalleryDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  disabled={!hasValidSequence}
+                  className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
+                  variant="outline"
+                  title="Добавить в галерею"
+                >
+                  <Heart className="w-4 h-4 md:w-5 md:h-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Добавить в галерею</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="gallery-name">Введите название (3-8 символов)</Label>
+                    <Input
+                      id="gallery-name"
+                      value={galleryName}
+                      onChange={(e) => setGalleryName(e.target.value)}
+                      placeholder="Название произведения"
+                      maxLength={8}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="gallery-author">Введите автора (3-8 символов)</Label>
+                    <Input
+                      id="gallery-author"
+                      value={galleryAuthor}
+                      onChange={(e) => setGalleryAuthor(e.target.value)}
+                      placeholder="Автор произведения"
+                      maxLength={8}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setShowGalleryDialog(false)}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={handleGalleryUpload}
+                      className="flex-1"
+                      disabled={!galleryName.trim() || !galleryAuthor.trim()}
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {analysisResult.hasErrors && (
@@ -730,6 +848,8 @@ const MidiSequencer = () => {
           )}
         </CardContent>
       </Card>
+      
+      <MidiGallery onLoadFile={handleLoadFromGallery} />
     </div>
   );
 };
