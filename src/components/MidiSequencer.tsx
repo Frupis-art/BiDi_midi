@@ -565,7 +565,7 @@ const MidiSequencer = () => {
               <label htmlFor="sequence" className="text-xs md:text-sm font-medium">
                 Последовательность 1
               </label>
-              <div className="flex items-center gap-1 md:gap-2">
+              <div className="flex items-center gap-1">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -581,61 +581,60 @@ const MidiSequencer = () => {
                   }}
                   variant="outline"
                   size="sm"
-                  className="text-xs px-2 py-1 h-7 md:h-9 md:px-3 md:py-2"
+                  className="text-xs px-2 py-1 h-7 md:h-8"
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">Очистить</span>
-                  <span className="sm:hidden">Clear</span>
+                  <span className="hidden md:inline">Очистить</span>
                 </Button>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   variant="outline"
                   size="sm"
-                  className="text-xs px-2 py-1 h-7 md:h-9 md:px-3 md:py-2"
+                  className="text-xs px-2 py-1 h-7 md:h-8"
                 >
                   <Upload className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">{t('openMidi')}</span>
-                  <span className="sm:hidden">MIDI</span>
+                  <span className="hidden md:inline">{t('openMidi')}</span>
+                  <span className="md:hidden">MIDI</span>
                 </Button>
               </div>
             </div>
-            <div className="flex gap-1 md:gap-2">
+            <div className="flex gap-1">
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence(1)}
                   disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title={t('transposeUp')}
                 >
-                  <ArrowUp className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowUp className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => transposeSequence(-1)}
                   disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title={t('transposeDown')}
                 >
-                  <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowDown className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => multiplyDuration(0.5, 1)}
                   disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title="Уменьшить длительность x0.5"
                 >
-                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowLeft className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => multiplyDuration(2, 1)}
                   disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title="Увеличить длительность x2"
                 >
-                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowRight className="w-3 h-3" />
                 </Button>
               </div>
               <Textarea
@@ -661,43 +660,43 @@ const MidiSequencer = () => {
                 Последовательность 2
               </label>
             </div>
-            <div className="flex gap-1 md:gap-2">
+            <div className="flex gap-1">
               <div className="flex flex-col gap-1">
                 <Button
                   onClick={() => transposeSequence2(1)}
                   disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title={t('transposeUp')}
                 >
-                  <ArrowUp className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowUp className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => transposeSequence2(-1)}
                   disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title={t('transposeDown')}
                 >
-                  <ArrowDown className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowDown className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => multiplyDuration(0.5, 2)}
                   disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title="Уменьшить длительность x0.5"
                 >
-                  <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowLeft className="w-3 h-3" />
                 </Button>
                 <Button
                   onClick={() => multiplyDuration(2, 2)}
                   disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-8 md:h-8 p-0"
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
                   variant="outline"
                   title="Увеличить длительность x2"
                 >
-                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
+                  <ArrowRight className="w-3 h-3" />
                 </Button>
               </div>
               <Textarea
@@ -722,7 +721,7 @@ const MidiSequencer = () => {
               Инструмент для последовательности 1
             </label>
             <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -740,7 +739,7 @@ const MidiSequencer = () => {
               Инструмент для последовательности 2
             </label>
             <Select value={selectedInstrument2} onValueChange={setSelectedInstrument2}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -771,10 +770,10 @@ const MidiSequencer = () => {
             <Button
               onClick={handlePlay}
               disabled={!hasValidSequence}
-              className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
+              className="flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full p-0"
               variant={isPlaying ? "destructive" : "default"}
             >
-              <CirclePlay className="w-4 h-4 md:w-5 md:h-5" />
+              <CirclePlay className="w-5 h-5 md:w-6 md:h-6" />
             </Button>
 
             <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
@@ -784,29 +783,29 @@ const MidiSequencer = () => {
                   className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
                   variant="outline"
                 >
-                  <Save className="w-4 h-4 md:w-5 md:h-5" />
+                  <Save className="w-4 h-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[95vw] max-w-md">
                 <DialogHeader>
                   <DialogTitle className="text-base md:text-lg">{t('selectFormat')}</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <Button
                     onClick={() => handleSaveOption('midi')}
-                    className="flex flex-col items-center gap-2 h-16 md:h-20"
+                    className="flex flex-col items-center gap-2 h-16 text-sm"
                     variant="outline"
                   >
-                    <Download className="w-5 h-5 md:w-6 md:h-6" />
-                    <span className="text-xs md:text-sm">{t('midiFile')}</span>
+                    <Download className="w-5 h-5" />
+                    <span className="text-xs">{t('midiFile')}</span>
                   </Button>
                   <Button
                     onClick={() => handleSaveOption('mp3')}
-                    className="flex flex-col items-center gap-2 h-16 md:h-20"
+                    className="flex flex-col items-center gap-2 h-16 text-sm"
                     variant="outline"
                   >
-                    <Music className="w-5 h-5 md:w-6 md:h-6" />
-                    <span className="text-xs md:text-sm">{t('audioFile')}</span>
+                    <Music className="w-5 h-5" />
+                    <span className="text-xs">{t('audioFile')}</span>
                   </Button>
                 </div>
               </DialogContent>
@@ -820,45 +819,47 @@ const MidiSequencer = () => {
                   variant="outline"
                   title="Добавить в галерею"
                 >
-                  <Heart className="w-4 h-4 md:w-5 md:h-5" />
+                  <Heart className="w-4 h-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[95vw] max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Добавить в галерею</DialogTitle>
+                  <DialogTitle className="text-base md:text-lg">Добавить в галерею</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="gallery-name">Введите название (3-12 символов)</Label>
+                    <Label htmlFor="gallery-name" className="text-sm">Введите название (3-12 символов)</Label>
                     <Input
                       id="gallery-name"
                       value={galleryName}
                       onChange={(e) => setGalleryName(e.target.value)}
                       placeholder="Название произведения"
                       maxLength={12}
+                      className="h-9 text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-author">Введите автора (3-12 символов)</Label>
+                    <Label htmlFor="gallery-author" className="text-sm">Введите автора (3-12 символов)</Label>
                     <Input
                       id="gallery-author"
                       value={galleryAuthor}
                       onChange={(e) => setGalleryAuthor(e.target.value)}
                       placeholder="Автор произведения"
                       maxLength={12}
+                      className="h-9 text-sm"
                     />
                   </div>
                   <div className="flex gap-2">
                     <Button
                       onClick={() => setShowGalleryDialog(false)}
                       variant="outline"
-                      className="flex-1"
+                      className="flex-1 h-9 text-sm"
                     >
                       Отмена
                     </Button>
                     <Button
                       onClick={handleGalleryUpload}
-                      className="flex-1"
+                      className="flex-1 h-9 text-sm"
                       disabled={!galleryName.trim() || !galleryAuthor.trim()}
                     >
                       Добавить
@@ -872,7 +873,7 @@ const MidiSequencer = () => {
           {analysisResult.hasErrors && (
             <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 1:</p>
-              <ul className="text-xs md:text-sm text-red-700 mt-1 list-disc list-inside">
+              <ul className="text-xs text-red-700 mt-1 list-disc list-inside">
                 {parsedNotes
                   .filter(note => note.isError)
                   .map((note, index) => (
@@ -885,7 +886,7 @@ const MidiSequencer = () => {
           {analysisResult2.hasErrors && (
             <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 2:</p>
-              <ul className="text-xs md:text-sm text-red-700 mt-1 list-disc list-inside">
+              <ul className="text-xs text-red-700 mt-1 list-disc list-inside">
                 {parsedNotes2
                   .filter(note => note.isError)
                   .map((note, index) => (

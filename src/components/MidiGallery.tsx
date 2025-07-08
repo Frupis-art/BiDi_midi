@@ -297,57 +297,65 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   };
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="text-xl">Галерея MIDI</CardTitle>
-        <div className="flex items-center gap-2">
-          <span className="text-sm">Упорядочить по:</span>
-          <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rating">Рейтинг</SelectItem>
-              <SelectItem value="date">Новое</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={toggleSortOrder}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1"
-          >
-            <RotateCcw className="w-3 h-3" />
-            {sortOrder === 'desc' ? 
-              (sortBy === 'rating' ? 'Больше→Меньше' : 'Новее→Старее') : 
-              (sortBy === 'rating' ? 'Меньше→Больше' : 'Старее→Новее')
-            }
-          </Button>
-          <Button
-            onClick={handleRefreshGallery}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-1"
-            title="Обновить галерею"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Обновить
-          </Button>
+    <Card className="mt-4 md:mt-6">
+      <CardHeader className="p-3 md:p-6">
+        <CardTitle className="text-lg md:text-xl">Галерея MIDI</CardTitle>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          <span className="text-xs md:text-sm">Упорядочить по:</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
+              <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rating">Рейтинг</SelectItem>
+                <SelectItem value="date">Новое</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={toggleSortOrder}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span className="hidden sm:inline">
+                {sortOrder === 'desc' ? 
+                  (sortBy === 'rating' ? 'Больше→Меньше' : 'Новее→Старее') : 
+                  (sortBy === 'rating' ? 'Меньше→Больше' : 'Старее→Новее')
+                }
+              </span>
+              <span className="sm:hidden">
+                {sortOrder === 'desc' ? '↓' : '↑'}
+              </span>
+            </Button>
+            <Button
+              onClick={handleRefreshGallery}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+              title="Обновить галерею"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span className="hidden sm:inline">Обновить</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-3 md:p-6 pt-0">
         {sortedFiles.length === 0 ? (
-          <p className="text-muted-foreground text-center py-4">Галерея пуста</p>
+          <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
         ) : (
           <div className="space-y-2">
             {sortedFiles.map((file) => (
-              <div key={file.id} className="flex items-center gap-2 p-2 border rounded-md">
+              <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
                 {/* Кнопки действий */}
                 <div className="flex gap-1">
                   <Button
                     onClick={() => handleLoadFile(file)}
                     variant="outline"
                     size="sm"
+                    className="w-6 h-6 md:w-8 md:h-8 p-0"
                     title="Подгрузить в последовательности"
                   >
                     <Upload className="w-3 h-3" />
@@ -356,6 +364,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                     onClick={() => handleDownloadFile(file)}
                     variant="outline"
                     size="sm"
+                    className="w-6 h-6 md:w-8 md:h-8 p-0"
                     title="Скачать MIDI файл"
                   >
                     <Download className="w-3 h-3" />
@@ -367,8 +376,8 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                       onClick={() => handleDeleteFile(file.id)}
                       variant="destructive"
                       size="sm"
+                      className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
                       title="🔐 Удалить файл (АДМИН)"
-                      className="animate-pulse"
                     >
                       <Trash2 className="w-3 h-3" />
                     </Button>
@@ -376,8 +385,8 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                 </div>
 
                 {/* Название файла */}
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-mono truncate block">
+                <div className="flex-1 min-w-0 px-1">
+                  <span className="text-xs md:text-sm font-mono truncate block">
                     {file.name}_{file.author}_{file.id}
                   </span>
                 </div>
@@ -388,7 +397,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                     onClick={() => handleVote(file.id, 'up')}
                     variant={file.userVotes[currentUserId] === 'up' ? "default" : "outline"}
                     size="sm"
-                    className="w-8 h-8 p-0"
+                    className="w-6 h-6 md:w-8 md:h-8 p-0"
                   >
                     <ArrowUp className="w-3 h-3 text-green-600" />
                   </Button>
@@ -396,15 +405,15 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                     onClick={() => handleVote(file.id, 'down')}
                     variant={file.userVotes[currentUserId] === 'down' ? "destructive" : "outline"}
                     size="sm"
-                    className="w-8 h-8 p-0"
+                    className="w-6 h-6 md:w-8 md:h-8 p-0"
                   >
                     <ArrowDown className="w-3 h-3 text-red-600" />
                   </Button>
                 </div>
 
                 {/* Рейтинг */}
-                <div className="min-w-[3rem] text-center">
-                  <span className={`text-sm font-semibold ${
+                <div className="min-w-[2rem] md:min-w-[3rem] text-center">
+                  <span className={`text-xs md:text-sm font-semibold ${
                     file.rating < 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
                     {file.rating}
@@ -417,36 +426,38 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
 
         {/* Диалог загрузки в галерею */}
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-md">
             <DialogHeader>
-              <DialogTitle>Добавить в галерею</DialogTitle>
+              <DialogTitle className="text-base md:text-lg">Добавить в галерею</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="upload-name">Введите название (3-8 символов)</Label>
+                <Label htmlFor="upload-name" className="text-sm">Введите название (3-8 символов)</Label>
                 <Input
                   id="upload-name"
                   value={uploadName}
                   onChange={(e) => setUploadName(e.target.value)}
                   placeholder="Название произведения"
                   maxLength={8}
+                  className="h-9 text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="upload-author">Введите автора (3-8 символов)</Label>
+                <Label htmlFor="upload-author" className="text-sm">Введите автора (3-8 символов)</Label>
                 <Input
                   id="upload-author"
                   value={uploadAuthor}
                   onChange={(e) => setUploadAuthor(e.target.value)}
                   placeholder="Автор произведения"
                   maxLength={8}
+                  className="h-9 text-sm"
                 />
               </div>
               <div className="flex gap-2">
                 <Button
                   onClick={() => setShowUploadDialog(false)}
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 h-9 text-sm"
                 >
                   Отмена
                 </Button>
@@ -454,7 +465,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
                   onClick={() => {
                     // Этот обработчик будет переопределен в родительском компоненте
                   }}
-                  className="flex-1"
+                  className="flex-1 h-9 text-sm"
                   disabled={!uploadName.trim() || !uploadAuthor.trim()}
                 >
                   Добавить
