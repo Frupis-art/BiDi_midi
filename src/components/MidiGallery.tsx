@@ -301,7 +301,6 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
       <CardHeader className="p-3 md:p-6">
         <CardTitle className="text-lg md:text-xl">Галерея MIDI</CardTitle>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-          <span className="text-xs md:text-sm">Упорядочить по:</span>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
               <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
@@ -318,16 +317,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
               size="sm"
               className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span className="hidden sm:inline">
-                {sortOrder === 'desc' ? 
-                  (sortBy === 'rating' ? 'Больше→Меньше' : 'Новее→Старее') : 
-                  (sortBy === 'rating' ? 'Меньше→Больше' : 'Старее→Новее')
-                }
-              </span>
-              <span className="sm:hidden">
-                {sortOrder === 'desc' ? '↓' : '↑'}
-              </span>
+              {sortOrder === 'desc' ? '/\\' : '\\/'}
             </Button>
             <Button
               onClick={handleRefreshGallery}
@@ -337,7 +327,6 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
               title="Обновить галерею"
             >
               <RotateCcw className="w-3 h-3" />
-              <span className="hidden sm:inline">Обновить</span>
             </Button>
           </div>
         </div>
