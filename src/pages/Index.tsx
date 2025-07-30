@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, { useState, useRef, useEffect } from "react";
 import MidiSequencer from '@/components/MidiSequencer';
 import JSZip from 'jszip';
@@ -330,18 +329,12 @@ const Index = () => {
     setParsedNotes(notes);
   };
 
-=======
-import MidiSequencer from '@/components/MidiSequencer';
-
-const Index = () => {
->>>>>>> 87ec78f9d9d0bad5b5537a4fc328da0f88e86ba9
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-2 md:py-8">
       <div className="container mx-auto px-2 md:px-4">
         <h1 className="text-xl md:text-4xl font-bold text-center mb-2 md:mb-8 text-foreground">
           BiDi MIDI
         </h1>
-<<<<<<< HEAD
         
         <MidiSequencer />
         
@@ -542,10 +535,6 @@ const Index = () => {
           cursor: pointer;
         }
       `}</style>
-=======
-        <MidiSequencer />
-      </div>
->>>>>>> 87ec78f9d9d0bad5b5537a4fc328da0f88e86ba9
     </div>
   );
 };
