@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Добавьте этот класс для max-width: 56rem (аналог max-w-4xl) */
+.max-w-4xl {
+  max-width: 56rem;
+}
+
+/* Если нужно добавить кастомные тени */
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
