@@ -304,10 +304,9 @@ const Index = () => {
       });
 
       const canvas = await html2canvas(tabContainerRef.current, {
-        scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#f5f5f5',
+        background: '#f5f5f5',
       });
       
       noteElements.forEach((el, i) => {
@@ -343,10 +342,10 @@ const Index = () => {
         
         <MidiSequencer />
         
-        {/* Обновленный блок WoodWind Fingering */}
-        <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-          <div className="mt-12 bg-white rounded-lg shadow-md p-4 md:p-6">
-            <h2 className="text-2xl font-bold mb-4 text-center">WoodWind Fingering</h2>
+        {/* WoodWind Fingering */}
+        <div className="w-full max-w-4xl mx-auto">
+          <div className="mt-8 bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+            <h2 className="text-2xl font-bold mb-6 text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">WoodWind Fingering</h2>
             
             <div className="mb-4">
               <label className="block mb-2 font-medium">Введите ноты:</label>
@@ -518,26 +517,28 @@ const Index = () => {
         </div>
       </div>
       
-      <style jsx>{`
-        input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 20px;
-          height: 20px;
-          background: white;
-          border: 2px solid #cbd5e1;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-        
-        input[type="range"]::-moz-range-thumb {
-          width: 20px;
-          height: 20px;
-          background: white;
-          border: 2px solid #cbd5e1;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-      `}</style>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #cbd5e1;
+            border-radius: 50%;
+            cursor: pointer;
+          }
+          
+          input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #cbd5e1;
+            border-radius: 50%;
+            cursor: pointer;
+          }
+        `
+      }} />
     </div>
   );
 };
