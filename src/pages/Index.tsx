@@ -22,7 +22,10 @@ const Index = () => {
   const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
-  const midiSequencerRef = useRef<{ handlePlay: () => void }>(null);
+  const midiSequencerRef = useRef<{ 
+    handlePlay: () => void;
+    registerPlaybackEndCallback: (callback: () => void) => void;
+  }>(null);
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -365,12 +368,12 @@ const Index = () => {
       setIsPlayButtonActive(true);
       
       if (midiSequencerRef.current) {
-        midiSequencerRef.current.handlePlay();
-        
-        // Сбрасываем активное состояние через 5 секунд (примерное время воспроизведения)
-        setTimeout(() => {
+        // Register callback to reset button state when playback actually ends
+        midiSequencerRef.current.registerPlaybackEndCallback(() => {
           setIsPlayButtonActive(false);
-        }, 5000);
+        });
+        
+        midiSequencerRef.current.handlePlay();
       }
     }, 2000);
   };
@@ -409,33 +412,6 @@ const Index = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
-                  </button>
-                  <button
-                    onClick={handlePlayWithDelay}
-                    className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
-                      isPlayButtonWaiting 
-                        ? "animate-pulse bg-blue-100 border-blue-300" 
-                        : isPlayButtonActive 
-                          ? "bg-green-100 border-green-300" 
-                          : "hover:bg-[#f1f5f9]"
-                    }`}
-                    title={
-                      isPlayButtonWaiting 
-                        ? "Ожидание воспроизведения... (нажмите для отмены)"
-                        : isPlayButtonActive 
-                          ? "Воспроизводится (нажмите для остановки)" 
-                          : "Воспроизвести в MIDI секвенсере (задержка 2 сек)"
-                    }
-                  >
-                    {isPlayButtonWaiting || isPlayButtonActive ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M8 5v10l7-5-7-5z"/>
-                      </svg>
-                    )}
                   </button>
                 </div>
               </div>
@@ -490,6 +466,37 @@ const Index = () => {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-semibold">Результат:</h3>
                   <div className="flex gap-2">
+                    <button
+                      onClick={handlePlayWithDelay}
+                      disabled={isGenerating}
+                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
+                        isGenerating ? "opacity-50 cursor-not-allowed" : ""
+                      } ${
+                        isPlayButtonWaiting 
+                          ? "animate-pulse bg-blue-100 border-blue-300" 
+                          : isPlayButtonActive 
+                            ? "bg-green-100 border-green-300" 
+                            : "hover:bg-[#f1f5f9]"
+                      }`}
+                      title={
+                        isPlayButtonWaiting 
+                          ? "Ожидание воспроизведения... (нажмите для отмены)"
+                          : isPlayButtonActive 
+                            ? "Воспроизводится (нажмите для остановки)" 
+                            : "Воспроизвести в MIDI секвенсере (задержка 2 сек)"
+                      }
+                    >
+                      {isPlayButtonWaiting || isPlayButtonActive ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 00-1-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M8 5v10l7-5-7-5z"/>
+                        </svg>
+                      )}
+                    </button>
+                    
                     <button
                       onClick={takeScreenshot}
                       disabled={isGenerating}

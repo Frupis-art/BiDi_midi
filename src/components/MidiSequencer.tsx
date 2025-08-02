@@ -25,7 +25,10 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
-const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) => {
+const MidiSequencer = React.forwardRef<{ 
+  handlePlay: () => void;
+  registerPlaybackEndCallback: (callback: () => void) => void;
+}>((props, ref) => {
   const { language, toggleLanguage, t } = useLanguage();
   const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
   const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
@@ -44,6 +47,7 @@ const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) 
   const [galleryAuthor, setGalleryAuthor] = useState('');
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const playbackEndCallbackRef = useRef<(() => void) | null>(null);
 
   const instruments = [
     { value: 'piano', label: 'Фортепиано' },
@@ -328,6 +332,13 @@ const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) 
         setIsPlaying(false);
         setCurrentNoteIndex(-1);
         setCurrentNoteIndex2(-1);
+        
+        // Call the registered callback if it exists
+        if (playbackEndCallbackRef.current) {
+          playbackEndCallbackRef.current();
+          playbackEndCallbackRef.current = null; // Clear after use
+        }
+        
         toast.success(t('playbackCompleted'));
       }, maxDuration);
       
@@ -350,6 +361,10 @@ const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) 
     
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
     timeoutRefs.current = [];
+  };
+
+  const registerPlaybackEndCallback = (callback: () => void) => {
+    playbackEndCallbackRef.current = callback;
   };
 
   const handleSaveOption = async (format: 'midi' | 'mp3') => {
@@ -541,7 +556,8 @@ const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) 
 
   // Expose handlePlay through ref
   React.useImperativeHandle(ref, () => ({
-    handlePlay
+    handlePlay,
+    registerPlaybackEndCallback
   }));
 
   return (
