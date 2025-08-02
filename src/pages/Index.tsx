@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import MidiSequencer from '@/components/MidiSequencer';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import html2canvas from 'html2canvas';
 
 type Note = {
@@ -12,15 +10,21 @@ type Note = {
   pause: boolean;
 };
 
+type NoteImageState = {
+  currentAltIndex: number;
+  maxAltIndex: number;
+};
+
 const Index = () => {
   const [tabInput, setTabInput] = useState("");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [instrument, setInstrument] = useState("recorder");
   const [imageSize, setImageSize] = useState(100);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const [availableInstruments, setAvailableInstruments] = useState<string[]>([]);
   const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
+  const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -97,188 +101,6 @@ const Index = () => {
     e.target.style.height = e.target.scrollHeight + 'px';
   };
 
-  const exportToZIP = async () => {
-    if (parsedNotes.length === 0 || isGenerating) return;
-    
-    setIsGenerating(true);
-    
-    try {
-      const zip = new JSZip();
-      const folder = zip.folder("tablature");
-      
-      const formattedDate = new Date().toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }).replace(/\//g, '.');
-      
-      let htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>${instrument} fingerchart</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 20px; 
-              background: #f5f5f5; 
-              color: #333;
-            }
-            .header { 
-              text-align: center; 
-              margin-bottom: 15px; 
-              padding-bottom: 10px;
-              border-bottom: 1px solid #ddd;
-            }
-            h1 { 
-              font-size: 1.8rem; 
-              margin-bottom: 5px;
-              color: #2c3e50;
-              text-transform: capitalize;
-            }
-            .notes-container { 
-              display: flex; 
-              flex-wrap: wrap; 
-              gap: 3px;
-              justify-content: center;
-              padding: 0;
-            }
-            .note { 
-              display: flex; 
-              flex-direction: column; 
-              align-items: center; 
-              background: white; 
-              padding: 8px; 
-              border-radius: 6px; 
-              box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-              margin-bottom: 15px;
-            }
-            .duration { 
-              font-size: 0.9rem; 
-              background: #f1f5f9;
-              padding: 3px 6px; 
-              border-radius: 3px; 
-              margin-bottom: 5px;
-              color: #555;
-              font-weight: normal;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 25px;
-              height: auto;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              max-width: ${imageSize}px;
-            }
-            img { 
-              display: block; 
-              max-width: 100%; 
-              height: auto;
-            }
-            .footer {
-              margin-top: 20px;
-              padding-top: 15px;
-              border-top: 1px solid #ddd;
-              font-size: 0.9rem;
-              color: #666;
-              text-align: center;
-            }
-            .brand {
-              margin-top: 5px;
-              color: #3498db;
-            }
-            .brand a {
-              color: #2980b9;
-              text-decoration: none;
-            }
-            .brand a:hover {
-              text-decoration: underline;
-            }
-            .date {
-              font-size: 0.8rem;
-              color: #777;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${instrument} fingerchart</h1>
-          </div>
-          
-          <div class="notes-container">
-      `;
-
-      for (let i = 0; i < parsedNotes.length; i++) {
-        const note = parsedNotes[i];
-        const imageName = getImageName(note);
-        const imageUrl = `/tabs/${instrument}/${imageName}.png`;
-        const fileName = `${i+1}_${note.duration}_${imageName}.png`;
-        const fallbackFileName = `${i+1}_${note.duration}_missing.png`;
-        
-        try {
-          const response = await fetch(imageUrl);
-          if (!response.ok) throw new Error("Image not found");
-          const blob = await response.blob();
-          folder.file(fileName, blob);
-          
-          htmlContent += `
-            <div class="note">
-              <div class="duration">${note.duration}</div>
-              <img src="${fileName}" width="${imageSize}" alt="${imageName}" />
-            </div>
-          `;
-        } catch (error) {
-          try {
-            const fallbackResponse = await fetch(`/tabs/NO_notes.png`);
-            const fallbackBlob = await fallbackResponse.blob();
-            folder.file(fallbackFileName, fallbackBlob);
-            
-            htmlContent += `
-              <div class="note">
-                <div class="duration">${note.duration}</div>
-                <img src="${fallbackFileName}" width="${imageSize}" alt="Missing note" />
-              </div>
-            `;
-          } catch (fallbackError) {
-            console.error("Fallback image missing", fallbackError);
-            htmlContent += `
-              <div class="note">
-                <div class="duration">${note.duration}</div>
-                <div style="width:${imageSize}px; height:${imageSize}px; background:#eee; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">
-                  Image missing
-                </div>
-              </div>
-            `;
-          }
-        }
-      }
-
-      htmlContent += `
-          </div>
-          
-          <div class="footer">
-            <div class="date">Generated on ${formattedDate}</div>
-            <div class="brand">Created with <a href="https://bidi-midi.lovable.app" target="_blank">BiDi MIDI</a></div>
-          </div>
-        </body>
-        </html>
-      `;
-      
-      folder.file("index.html", htmlContent);
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `${instrument}-fingerchart.zip`);
-      
-    } catch (error) {
-      console.error("Error creating ZIP:", error);
-      alert("Ошибка при создании архива");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   const waitForImages = (container: HTMLElement) => {
     const images = Array.from(container.querySelectorAll('img'));
     const promises = images.map(img => {
@@ -292,9 +114,9 @@ const Index = () => {
   };
 
   const takeScreenshot = async () => {
-    if (!tabContainerRef.current || isGenerating) return;
+    if (!tabContainerRef.current || isTakingScreenshot) return;
     
-    setIsGenerating(true);
+    setIsTakingScreenshot(true);
     
     try {
       await waitForImages(tabContainerRef.current);
@@ -331,36 +153,38 @@ const Index = () => {
       console.error('Ошибка при создании скриншота:', error);
       alert('Не удалось создать скриншот');
     } finally {
-      setIsGenerating(false);
+      setIsTakingScreenshot(false);
     }
   };
 
   const handleTabConvert = () => {
     const notes = parseTabNotes(tabInput);
     setParsedNotes(notes);
+    
+    // Инициализация состояний для новых нот
+    const newStates: Record<number, NoteImageState> = {};
+    notes.forEach((_, index) => {
+      newStates[index] = { currentAltIndex: 0, maxAltIndex: 0 };
+    });
+    setNoteStates(newStates);
   };
 
   const handlePlayWithDelay = () => {
-    // Если кнопка ожидает или воспроизводится - останавливаем немедленно
     if (isPlayButtonWaiting || isPlayButtonActive) {
-      // Очищаем таймаут ожидания если он есть
       if (playDelayTimeoutRef.current) {
         clearTimeout(playDelayTimeoutRef.current);
         playDelayTimeoutRef.current = null;
       }
       
-      // Останавливаем воспроизведение в MidiSequencer
       if (midiSequencerRef.current && isPlayButtonActive) {
-        midiSequencerRef.current.handlePlay(); // Это остановит воспроизведение
+        midiSequencerRef.current.handlePlay();
       }
       
-      // Сбрасываем состояния
       setIsPlayButtonWaiting(false);
       setIsPlayButtonActive(false);
       return;
     }
 
-    // Начинаем ожидание с пульсацией
     setIsPlayButtonWaiting(true);
     
     playDelayTimeoutRef.current = setTimeout(() => {
@@ -368,7 +192,6 @@ const Index = () => {
       setIsPlayButtonActive(true);
       
       if (midiSequencerRef.current) {
-        // Register callback to reset button state when playback actually ends
         midiSequencerRef.current.registerPlaybackEndCallback(() => {
           setIsPlayButtonActive(false);
         });
@@ -376,6 +199,59 @@ const Index = () => {
         midiSequencerRef.current.handlePlay();
       }
     }, 2000);
+  };
+
+  const handleImageClick = (index: number, imageName: string) => {
+    const currentState = noteStates[index] || { currentAltIndex: 0, maxAltIndex: 0 };
+    const nextAltIndex = currentState.currentAltIndex + 1;
+    
+    // Проверяем существование следующей альтернативы
+    const nextAltPath = nextAltIndex === 1 
+      ? `/tabs/${instrument}/${imageName}_alt1.png`
+      : `/tabs/${instrument}/${imageName}_alt${nextAltIndex}.png`;
+    
+    // Проверка существования изображения
+    const img = new Image();
+    img.src = nextAltPath;
+    
+    img.onload = () => {
+      // Изображение существует, обновляем состояние
+      setNoteStates(prev => ({
+        ...prev,
+        [index]: {
+          currentAltIndex: nextAltIndex,
+          maxAltIndex: Math.max(nextAltIndex, currentState.maxAltIndex)
+        }
+      }));
+    };
+    
+    img.onerror = () => {
+      // Изображение не существует, возвращаемся к основному
+      setNoteStates(prev => ({
+        ...prev,
+        [index]: {
+          currentAltIndex: 0,
+          maxAltIndex: currentState.maxAltIndex
+        }
+      }));
+    };
+  };
+
+  const getImagePath = (note: Note, index: number) => {
+    const imageName = getImageName(note);
+    
+    if (note.pause) {
+      return '/tabs/P.png';
+    }
+    
+    const state = noteStates[index];
+    if (!state) return `/tabs/${instrument}/${imageName}.png`;
+    
+    if (state.currentAltIndex === 0) {
+      return `/tabs/${instrument}/${imageName}.png`;
+    }
+    
+    return `/tabs/${instrument}/${imageName}_alt${state.currentAltIndex}.png`;
   };
 
   return (
@@ -387,7 +263,6 @@ const Index = () => {
         
         <MidiSequencer ref={midiSequencerRef} />
         
-        {/* Обновленный блок WoodWind Fingering */}
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
           <div className="mt-12 bg-white rounded-lg shadow-md p-4 md:p-6">
             <h2 className="text-2xl font-bold mb-4 text-center">WoodWind Fingering</h2>
@@ -468,9 +343,9 @@ const Index = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={handlePlayWithDelay}
-                      disabled={isGenerating}
+                      disabled={isTakingScreenshot}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
-                        isGenerating ? "opacity-50 cursor-not-allowed" : ""
+                        isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       } ${
                         isPlayButtonWaiting 
                           ? "animate-pulse bg-blue-100 border-blue-300" 
@@ -499,27 +374,14 @@ const Index = () => {
                     
                     <button
                       onClick={takeScreenshot}
-                      disabled={isGenerating}
+                      disabled={isTakingScreenshot}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
-                        isGenerating ? "opacity-50 cursor-not-allowed" : ""
+                        isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Скриншот"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    
-                    <button
-                      onClick={exportToZIP}
-                      disabled={isGenerating}
-                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
-                        isGenerating ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                      title="Сохранить ZIP"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
                     </button>
                   </div>
@@ -535,6 +397,9 @@ const Index = () => {
                 >
                   {parsedNotes.map((note, index) => {
                     const imageName = getImageName(note);
+                    const imagePath = getImagePath(note, index);
+                    const state = noteStates[index];
+                    
                     return (
                       <div 
                         key={index} 
@@ -570,7 +435,7 @@ const Index = () => {
                           }}
                         >
                           <img
-                            src={`/tabs/${instrument}/${imageName}.png`}
+                            src={imagePath}
                             alt={note.symbol}
                             className="border rounded bg-white"
                             style={{ 
@@ -578,10 +443,39 @@ const Index = () => {
                               height: '100%',
                               objectFit: "contain",
                               position: 'relative',
-                              zIndex: 5
+                              zIndex: 5,
+                              cursor: note.pause ? 'default' : 'pointer'
                             }}
+                            onClick={() => !note.pause && handleImageClick(index, imageName)}
                             onError={(e) => {
-                              e.currentTarget.src = `/tabs/NO_notes.png`;
+                              const currentState = noteStates[index] || { currentAltIndex: 0, maxAltIndex: 0 };
+                              
+                              // Если основное изображение не загрузилось
+                              if (currentState.currentAltIndex === 0) {
+                                // Проверяем наличие альтернативы _alt1
+                                const alt1Path = `/tabs/${instrument}/${imageName}_alt1.png`;
+                                const img = new Image();
+                                img.src = alt1Path;
+                                
+                                img.onload = () => {
+                                  // Альтернатива существует, используем её
+                                  setNoteStates(prev => ({
+                                    ...prev,
+                                    [index]: {
+                                      currentAltIndex: 1,
+                                      maxAltIndex: 1
+                                    }
+                                  }));
+                                };
+                                
+                                img.onerror = () => {
+                                  // Альтернатив нет, используем заглушку
+                                  e.currentTarget.src = '/tabs/NO_notes.png';
+                                };
+                              } else {
+                                // Уже показывали альтернативу, но она не загрузилась
+                                e.currentTarget.src = '/tabs/NO_notes.png';
+                              }
                             }}
                           />
                         </div>
