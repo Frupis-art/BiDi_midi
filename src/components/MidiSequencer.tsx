@@ -25,7 +25,7 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
-const MidiSequencer = () => {
+const MidiSequencer = React.forwardRef<{ handlePlay: () => void }>((props, ref) => {
   const { language, toggleLanguage, t } = useLanguage();
   const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
   const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
@@ -539,6 +539,11 @@ const MidiSequencer = () => {
     };
   }, []);
 
+  // Expose handlePlay through ref
+  React.useImperativeHandle(ref, () => ({
+    handlePlay
+  }));
+
   return (
     <div className="w-full max-w-4xl mx-auto p-4 md:p-6">
       <Card>
@@ -901,6 +906,6 @@ const MidiSequencer = () => {
       <MidiGallery onLoadFile={handleLoadFromGallery} />
     </div>
   );
-};
+});
 
 export default MidiSequencer;

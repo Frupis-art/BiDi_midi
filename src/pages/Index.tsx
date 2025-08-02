@@ -20,6 +20,7 @@ const Index = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableInstruments, setAvailableInstruments] = useState<string[]>([]);
   const tabContainerRef = useRef<HTMLDivElement>(null);
+  const midiSequencerRef = useRef<{ handlePlay: () => void }>(null);
 
   useEffect(() => {
     const fetchInstruments = async () => {
@@ -304,10 +305,9 @@ const Index = () => {
       });
 
       const canvas = await html2canvas(tabContainerRef.current, {
-        scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#f5f5f5',
+        background: '#f5f5f5',
       });
       
       noteElements.forEach((el, i) => {
@@ -334,6 +334,14 @@ const Index = () => {
     setParsedNotes(notes);
   };
 
+  const handlePlayWithDelay = () => {
+    setTimeout(() => {
+      if (midiSequencerRef.current) {
+        midiSequencerRef.current.handlePlay();
+      }
+    }, 2000);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-2 md:py-8">
       <div className="container mx-auto px-2 md:px-4">
@@ -341,7 +349,7 @@ const Index = () => {
           BiDi MIDI
         </h1>
         
-        <MidiSequencer />
+        <MidiSequencer ref={midiSequencerRef} />
         
         {/* Обновленный блок WoodWind Fingering */}
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
@@ -350,7 +358,7 @@ const Index = () => {
             
             <div className="mb-4">
               <label className="block mb-2 font-medium">Введите ноты:</label>
-              <div className="flex gap-2">
+                <div className="flex gap-2">
                 <textarea
                   value={tabInput}
                   onChange={handleTextareaChange}
@@ -359,15 +367,26 @@ const Index = () => {
                   rows={3}
                   style={{ minHeight: '100px' }}
                 />
-                <button
-                  onClick={handleTabConvert}
-                  className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
-                  title="Конвертировать"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleTabConvert}
+                    className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
+                    title="Конвертировать"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handlePlayWithDelay}
+                    className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
+                    title="Воспроизвести в MIDI секвенсере (задержка 2 сек)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M8 5v10l7-5-7-5z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -518,7 +537,7 @@ const Index = () => {
         </div>
       </div>
       
-      <style jsx>{`
+      <style>{`
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 20px;
