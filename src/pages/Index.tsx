@@ -19,8 +19,11 @@ const Index = () => {
   const [imageSize, setImageSize] = useState(100);
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableInstruments, setAvailableInstruments] = useState<string[]>([]);
+  const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
+  const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ handlePlay: () => void }>(null);
+  const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchInstruments = async () => {
@@ -335,9 +338,39 @@ const Index = () => {
   };
 
   const handlePlayWithDelay = () => {
-    setTimeout(() => {
+    // Если кнопка ожидает или воспроизводится - останавливаем немедленно
+    if (isPlayButtonWaiting || isPlayButtonActive) {
+      // Очищаем таймаут ожидания если он есть
+      if (playDelayTimeoutRef.current) {
+        clearTimeout(playDelayTimeoutRef.current);
+        playDelayTimeoutRef.current = null;
+      }
+      
+      // Останавливаем воспроизведение в MidiSequencer
+      if (midiSequencerRef.current && isPlayButtonActive) {
+        midiSequencerRef.current.handlePlay(); // Это остановит воспроизведение
+      }
+      
+      // Сбрасываем состояния
+      setIsPlayButtonWaiting(false);
+      setIsPlayButtonActive(false);
+      return;
+    }
+
+    // Начинаем ожидание с пульсацией
+    setIsPlayButtonWaiting(true);
+    
+    playDelayTimeoutRef.current = setTimeout(() => {
+      setIsPlayButtonWaiting(false);
+      setIsPlayButtonActive(true);
+      
       if (midiSequencerRef.current) {
         midiSequencerRef.current.handlePlay();
+        
+        // Сбрасываем активное состояние через 5 секунд (примерное время воспроизведения)
+        setTimeout(() => {
+          setIsPlayButtonActive(false);
+        }, 5000);
       }
     }, 2000);
   };
@@ -379,12 +412,30 @@ const Index = () => {
                   </button>
                   <button
                     onClick={handlePlayWithDelay}
-                    className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
-                    title="Воспроизвести в MIDI секвенсере (задержка 2 сек)"
+                    className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
+                      isPlayButtonWaiting 
+                        ? "animate-pulse bg-blue-100 border-blue-300" 
+                        : isPlayButtonActive 
+                          ? "bg-green-100 border-green-300" 
+                          : "hover:bg-[#f1f5f9]"
+                    }`}
+                    title={
+                      isPlayButtonWaiting 
+                        ? "Ожидание воспроизведения... (нажмите для отмены)"
+                        : isPlayButtonActive 
+                          ? "Воспроизводится (нажмите для остановки)" 
+                          : "Воспроизвести в MIDI секвенсере (задержка 2 сек)"
+                    }
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M8 5v10l7-5-7-5z"/>
-                    </svg>
+                    {isPlayButtonWaiting || isPlayButtonActive ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8 5v10l7-5-7-5z"/>
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>
