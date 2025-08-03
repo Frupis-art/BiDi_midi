@@ -11,8 +11,9 @@ type Note = {
 };
 
 type NoteImageState = {
-  currentAltIndex: number;
-  maxAltIndex: number;
+  currentIndex: number;
+  availablePaths: string[];
+  hasAlts: boolean;
 };
 
 const Index = () => {
@@ -25,6 +26,9 @@ const Index = () => {
   const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [prevNoteStates, setPrevNoteStates] = useState<Record<number, NoteImageState>>({});
+  const [prevInstrument, setPrevInstrument] = useState("");
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -92,6 +96,17 @@ const Index = () => {
 
   const getImageName = (note: Note) => {
     if (note.pause) return "P";
+    
+    // Автоматическая замена E# -> F, B# -> C
+    if (note.sharp) {
+      if (note.symbol === 'E') {
+        return `F${note.octave}`;
+      }
+      if (note.symbol === 'B') {
+        return `C${note.octave + 1}`;
+      }
+    }
+    
     return `${note.symbol}${note.sharp ? "dis" : ""}${note.octave}`;
   };
 
@@ -164,9 +179,14 @@ const Index = () => {
     // Инициализация состояний для новых нот
     const newStates: Record<number, NoteImageState> = {};
     notes.forEach((_, index) => {
-      newStates[index] = { currentAltIndex: 0, maxAltIndex: 0 };
+      newStates[index] = { 
+        currentIndex: 0,
+        availablePaths: [],
+        hasAlts: false
+      };
     });
     setNoteStates(newStates);
+    setPrevNoteStates({});
   };
 
   const handlePlayWithDelay = () => {
@@ -201,57 +221,137 @@ const Index = () => {
     }, 2000);
   };
 
-  const handleImageClick = (index: number, imageName: string) => {
-    const currentState = noteStates[index] || { currentAltIndex: 0, maxAltIndex: 0 };
-    const nextAltIndex = currentState.currentAltIndex + 1;
-    
-    // Проверяем существование следующей альтернативы
-    const nextAltPath = nextAltIndex === 1 
-      ? `/tabs/${instrument}/${imageName}_alt1.png`
-      : `/tabs/${instrument}/${imageName}_alt${nextAltIndex}.png`;
-    
-    // Проверка существования изображения
-    const img = new Image();
-    img.src = nextAltPath;
-    
-    img.onload = () => {
-      // Изображение существует, обновляем состояние
-      setNoteStates(prev => ({
-        ...prev,
-        [index]: {
-          currentAltIndex: nextAltIndex,
-          maxAltIndex: Math.max(nextAltIndex, currentState.maxAltIndex)
-        }
-      }));
-    };
-    
-    img.onerror = () => {
-      // Изображение не существует, возвращаемся к основному
-      setNoteStates(prev => ({
-        ...prev,
-        [index]: {
-          currentAltIndex: 0,
-          maxAltIndex: currentState.maxAltIndex
-        }
-      }));
-    };
+  // Оптимизированная проверка изображений с таймаутом
+  const checkImageExists = (path: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      
+      // Устанавливаем таймаут для быстрой реакции
+      const timeout = setTimeout(() => {
+        resolve(false);
+        img.onload = null;
+        img.onerror = null;
+      }, 300); // Таймаут 300мс
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        resolve(true);
+      };
+      
+      img.onerror = () => {
+        clearTimeout(timeout);
+        resolve(false);
+      };
+      
+      img.src = path;
+    });
   };
 
-  const getImagePath = (note: Note, index: number) => {
-    const imageName = getImageName(note);
-    
+  // Функция для получения всех доступных путей изображений для ноты
+  const getAvailablePaths = async (note: Note): Promise<{ paths: string[], hasAlts: boolean }> => {
     if (note.pause) {
-      return '/tabs/P.png';
+      return { paths: ['/tabs/P.png'], hasAlts: false };
+    }
+    
+    const imageName = getImageName(note);
+    const basePath = `/tabs/${instrument}/`;
+    const paths: string[] = [];
+    let hasAlts = false;
+    
+    // Проверяем основное изображение
+    const mainPath = `${basePath}${imageName}.png`;
+    if (await checkImageExists(mainPath)) {
+      paths.push(mainPath);
+    }
+    
+    // Проверяем альтернативные изображения (до 3)
+    for (let i = 1; i <= 3; i++) {
+      const altPath = `${basePath}${imageName}_alt${i}.png`;
+      if (await checkImageExists(altPath)) {
+        paths.push(altPath);
+        hasAlts = true;
+      }
+    }
+    
+    // Если ничего не найдено, используем заглушку
+    if (paths.length === 0) {
+      return { paths: ['/tabs/NO_notes.png'], hasAlts: false };
+    }
+    
+    return { paths, hasAlts };
+  };
+
+  // Эффект для инициализации путей изображений с параллельной загрузкой
+  useEffect(() => {
+    const initializeImagePaths = async () => {
+      if (parsedNotes.length === 0) return;
+      
+      // Сохраняем предыдущие состояния
+      setPrevNoteStates(noteStates);
+      setPrevInstrument(instrument);
+      
+      setIsLoading(true);
+      
+      try {
+        const newStates: Record<number, NoteImageState> = {};
+        
+        // Создаем массив промисов для параллельной проверки
+        const promises = parsedNotes.map(async (note, index) => {
+          const { paths, hasAlts } = await getAvailablePaths(note);
+          return { index, paths, hasAlts };
+        });
+        
+        // Ожидаем выполнения всех проверок
+        const results = await Promise.all(promises);
+        
+        // Формируем новое состояние
+        results.forEach(({ index, paths, hasAlts }) => {
+          newStates[index] = {
+            currentIndex: 0,
+            availablePaths: paths,
+            hasAlts
+          };
+        });
+        
+        setNoteStates(newStates);
+      } catch (error) {
+        console.error("Error initializing images:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initializeImagePaths();
+  }, [parsedNotes, instrument]);
+
+  const handleImageClick = (index: number) => {
+    setNoteStates(prev => {
+      const state = prev[index];
+      if (!state || !state.hasAlts) return prev;
+      
+      const nextIndex = (state.currentIndex + 1) % state.availablePaths.length;
+      
+      return {
+        ...prev,
+        [index]: {
+          ...state,
+          currentIndex: nextIndex
+        }
+      };
+    });
+  };
+
+  const getImagePath = (index: number): string => {
+    // Если идет загрузка, используем предыдущие состояния
+    if (isLoading && prevInstrument === instrument && prevNoteStates[index]) {
+      return prevNoteStates[index].availablePaths[prevNoteStates[index].currentIndex] || '/tabs/NO_notes.png';
     }
     
     const state = noteStates[index];
-    if (!state) return `/tabs/${instrument}/${imageName}.png`;
-    
-    if (state.currentAltIndex === 0) {
-      return `/tabs/${instrument}/${imageName}.png`;
+    if (!state || state.availablePaths.length === 0) {
+      return '/tabs/NO_notes.png';
     }
-    
-    return `/tabs/${instrument}/${imageName}_alt${state.currentAltIndex}.png`;
+    return state.availablePaths[state.currentIndex];
   };
 
   return (
@@ -336,14 +436,26 @@ const Index = () => {
               </div>
             </div>
             
+            {isLoading && (
+              <div className="text-center py-4">
+                <p className="text-gray-600">Загрузка изображений для {instrument}...</p>
+              </div>
+            )}
+            
             {parsedNotes.length > 0 && (
-              <div className="mt-6">
+              <div className="mt-6 relative">
+                {isLoading && (
+                  <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-20 rounded-lg">
+                    <p className="text-lg font-medium">Загрузка изображений для {instrument}...</p>
+                  </div>
+                )}
+                
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-semibold">Результат:</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={handlePlayWithDelay}
-                      disabled={isTakingScreenshot}
+                      disabled={isTakingScreenshot || isLoading}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
                         isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       } ${
@@ -374,9 +486,9 @@ const Index = () => {
                     
                     <button
                       onClick={takeScreenshot}
-                      disabled={isTakingScreenshot}
+                      disabled={isTakingScreenshot || isLoading}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
-                        isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
+                        isTakingScreenshot || isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Скриншот"
                     >
@@ -396,9 +508,14 @@ const Index = () => {
                   }}
                 >
                   {parsedNotes.map((note, index) => {
-                    const imageName = getImageName(note);
-                    const imagePath = getImagePath(note, index);
-                    const state = noteStates[index];
+                    const state = noteStates[index] || { 
+                      currentIndex: 0,
+                      availablePaths: [],
+                      hasAlts: false
+                    };
+                    
+                    const imagePath = getImagePath(index);
+                    const isClickable = !note.pause && state.hasAlts && !isLoading;
                     
                     return (
                       <div 
@@ -444,38 +561,16 @@ const Index = () => {
                               objectFit: "contain",
                               position: 'relative',
                               zIndex: 5,
-                              cursor: note.pause ? 'default' : 'pointer'
+                              cursor: isClickable ? 'pointer' : 'default'
                             }}
-                            onClick={() => !note.pause && handleImageClick(index, imageName)}
-                            onError={(e) => {
-                              const currentState = noteStates[index] || { currentAltIndex: 0, maxAltIndex: 0 };
-                              
-                              // Если основное изображение не загрузилось
-                              if (currentState.currentAltIndex === 0) {
-                                // Проверяем наличие альтернативы _alt1
-                                const alt1Path = `/tabs/${instrument}/${imageName}_alt1.png`;
-                                const img = new Image();
-                                img.src = alt1Path;
-                                
-                                img.onload = () => {
-                                  // Альтернатива существует, используем её
-                                  setNoteStates(prev => ({
-                                    ...prev,
-                                    [index]: {
-                                      currentAltIndex: 1,
-                                      maxAltIndex: 1
-                                    }
-                                  }));
-                                };
-                                
-                                img.onerror = () => {
-                                  // Альтернатив нет, используем заглушку
-                                  e.currentTarget.src = '/tabs/NO_notes.png';
-                                };
-                              } else {
-                                // Уже показывали альтернативу, но она не загрузилась
-                                e.currentTarget.src = '/tabs/NO_notes.png';
+                            onClick={() => {
+                              if (isClickable) {
+                                handleImageClick(index);
                               }
+                            }}
+                            onError={(e) => {
+                              if (!e.currentTarget) return;
+                              e.currentTarget.src = '/tabs/NO_notes.png';
                             }}
                           />
                         </div>
