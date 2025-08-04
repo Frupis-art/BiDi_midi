@@ -184,31 +184,43 @@ export const initializeAudio = async (instrument: string = 'piano') => {
   }
 };
 
-export const playSequence = async (notes: ParsedNote[], speed: number = 1, instrument: string = 'piano', volume: number = 0.7) => {
-  await initializeAudio(instrument);
+export const playSequence = async (
+  sequenceData: Array<{ parsedNotes: ParsedNote[], instrument: string, volume: number }>, 
+  speed: number = 1
+) => {
+  if (sequenceData.length === 0) return;
   
-  // Создаем новый инструмент для этой последовательности
-  const synth = createInstrument(instrument);
-  synth.volume.value = Tone.gainToDb(volume); // Устанавливаем громкость
-  synthInstances.push(synth);
+  await initializeAudio();
+  
+  // Создаем инструменты для каждой последовательности
+  const synths = sequenceData.map(({ instrument, volume }) => {
+    const synth = createInstrument(instrument);
+    synth.volume.value = Tone.gainToDb(volume);
+    synthInstances.push(synth);
+    return synth;
+  });
 
-  let currentTime = 0;
-  
-  notes.forEach((note) => {
-    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-      const noteName = `${note.note}${note.octave}`;
-      const adjustedDuration = (note.duration / 1000) / speed; // Конвертируем мс в секунды
-      
-      const timeoutId = setTimeout(() => {
-        if (synth) {
-          synth.triggerAttackRelease(noteName, adjustedDuration);
-        }
-      }, (currentTime / 1000) * 1000); // Конвертируем мс в мс для setTimeout
-      
-      scheduledEvents.push(timeoutId);
-      activeNotes.push(noteName);
-    }
-    currentTime += note.duration / speed;
+  // Воспроизводим каждую последовательность
+  sequenceData.forEach(({ parsedNotes }, sequenceIndex) => {
+    const synth = synths[sequenceIndex];
+    let currentTime = 0;
+    
+    parsedNotes.forEach((note) => {
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+        const noteName = `${note.note}${note.octave}`;
+        const adjustedDuration = (note.duration / 1000) / speed;
+        
+        const timeoutId = setTimeout(() => {
+          if (synth) {
+            synth.triggerAttackRelease(noteName, adjustedDuration);
+          }
+        }, (currentTime / 1000) * 1000);
+        
+        scheduledEvents.push(timeoutId);
+        activeNotes.push(noteName);
+      }
+      currentTime += note.duration / speed;
+    });
   });
 };
 
@@ -229,57 +241,37 @@ export const stopSequence = () => {
 
 // Обновленная функция экспорта с поддержкой двух последовательностей
 export const exportMidi = async (
-  notes1: ParsedNote[], 
-  notes2: ParsedNote[], 
+  sequenceData: Array<{ parsedNotes: ParsedNote[] }>,
   speed: number = 1, 
   options?: { format: 'midi' | 'mp3' }
 ) => {
   const midi = new Midi();
   
-  // Создаем первый трек для первой последовательности
-  if (notes1.length > 0 && notes1.some(note => !note.isError && !note.isPause)) {
-    const track1 = midi.addTrack();
-    track1.name = "Sequence 1";
-    track1.channel = 0;
+  // Создаем треки для каждой последовательности
+  sequenceData.forEach(({ parsedNotes }, index) => {
+    if (parsedNotes.length > 0 && parsedNotes.some(note => !note.isError && !note.isPause)) {
+      const track = midi.addTrack();
+      track.name = `Sequence ${index + 1}`;
+      track.channel = index;
 
-    let currentTime1 = 0;
-    notes1.forEach((note) => {
-      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-        const noteName = `${note.note}${note.octave}`;
-        const adjustedDuration = (note.duration / 1000) / speed;
-        track1.addNote({
-          midi: Tone.Frequency(noteName).toMidi(),
-          time: currentTime1 / 1000,
-          duration: adjustedDuration
-        });
-      }
-      currentTime1 += note.duration / speed;
-    });
-  }
-
-  // Создаем второй трек для второй последовательности
-  if (notes2.length > 0 && notes2.some(note => !note.isError && !note.isPause)) {
-    const track2 = midi.addTrack();
-    track2.name = "Sequence 2";
-    track2.channel = 1;
-
-    let currentTime2 = 0;
-    notes2.forEach((note) => {
-      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-        const noteName = `${note.note}${note.octave}`;
-        const adjustedDuration = (note.duration / 1000) / speed;
-        track2.addNote({
-          midi: Tone.Frequency(noteName).toMidi(),
-          time: currentTime2 / 1000,
-          duration: adjustedDuration
-        });
-      }
-      currentTime2 += note.duration / speed;
-    });
-  }
+      let currentTime = 0;
+      parsedNotes.forEach((note) => {
+        if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+          const noteName = `${note.note}${note.octave}`;
+          const adjustedDuration = (note.duration / 1000) / speed;
+          track.addNote({
+            midi: Tone.Frequency(noteName).toMidi(),
+            time: currentTime / 1000,
+            duration: adjustedDuration
+          });
+        }
+        currentTime += note.duration / speed;
+      });
+    }
+  });
 
   if (options?.format === 'mp3') {
-    await convertToMp3(notes1, notes2, speed);
+    await convertToMp3(sequenceData, speed);
   } else {
     const midiArray = midi.toArray();
     const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
@@ -334,62 +326,47 @@ const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
 };
 
 // Обновленная функция конвертации в MP3 с поддержкой двух последовательностей
-const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: number) => {
+const convertToMp3 = async (sequenceData: Array<{ parsedNotes: ParsedNote[] }>, speed: number) => {
   const audioContext = new AudioContext();
   const sampleRate = audioContext.sampleRate;
   
   // Вычисляем общую длительность
-  let totalDuration1 = 0;
-  notes1.forEach(note => {
-    totalDuration1 += (note.duration / 1000) / speed;
+  const durations = sequenceData.map(({ parsedNotes }) => {
+    let totalDuration = 0;
+    parsedNotes.forEach(note => {
+      totalDuration += (note.duration / 1000) / speed;
+    });
+    return totalDuration;
   });
   
-  let totalDuration2 = 0;
-  notes2.forEach(note => {
-    totalDuration2 += (note.duration / 1000) / speed;
-  });
-  
-  const totalDuration = Math.max(totalDuration1, totalDuration2);
+  const totalDuration = Math.max(...durations);
   const bufferLength = Math.ceil(totalDuration * sampleRate);
-  const audioBuffer = audioContext.createBuffer(2, bufferLength, sampleRate); // Стерео
+  const numChannels = Math.min(sequenceData.length, 2); // Максимум 2 канала для стерео
+  const audioBuffer = audioContext.createBuffer(numChannels, bufferLength, sampleRate);
   
-  // Первая последовательность в левый канал
-  const leftChannel = audioBuffer.getChannelData(0);
-  let currentTime1 = 0;
-  for (const note of notes1) {
-    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-      const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
-      const noteDuration = (note.duration / 1000) / speed;
-      const startSample = Math.floor((currentTime1 / 1000) * sampleRate);
-      const endSample = Math.floor(((currentTime1 / 1000) + noteDuration) * sampleRate);
-      
-      for (let i = startSample; i < endSample && i < bufferLength; i++) {
-        const t = (i - startSample) / sampleRate;
-        const envelope = Math.exp(-t * 2);
-        leftChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+  // Рендерим каждую последовательность в соответствующий канал
+  sequenceData.forEach(({ parsedNotes }, sequenceIndex) => {
+    if (sequenceIndex >= numChannels) return; // Пропускаем если больше каналов чем поддерживается
+    
+    const channel = audioBuffer.getChannelData(sequenceIndex);
+    let currentTime = 0;
+    
+    for (const note of parsedNotes) {
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+        const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
+        const noteDuration = (note.duration / 1000) / speed;
+        const startSample = Math.floor((currentTime / 1000) * sampleRate);
+        const endSample = Math.floor(((currentTime / 1000) + noteDuration) * sampleRate);
+        
+        for (let i = startSample; i < endSample && i < bufferLength; i++) {
+          const t = (i - startSample) / sampleRate;
+          const envelope = Math.exp(-t * 2);
+          channel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+        }
       }
+      currentTime += note.duration / speed;
     }
-    currentTime1 += note.duration / speed;
-  }
-  
-  // Вторая последовательность в правый канал
-  const rightChannel = audioBuffer.getChannelData(1);
-  let currentTime2 = 0;
-  for (const note of notes2) {
-    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-      const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
-      const noteDuration = (note.duration / 1000) / speed;
-      const startSample = Math.floor((currentTime2 / 1000) * sampleRate);
-      const endSample = Math.floor(((currentTime2 / 1000) + noteDuration) * sampleRate);
-      
-      for (let i = startSample; i < endSample && i < bufferLength; i++) {
-        const t = (i - startSample) / sampleRate;
-        const envelope = Math.exp(-t * 2);
-        rightChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
-      }
-    }
-    currentTime2 += note.duration / speed;
-  }
+  });
   
   const wavBlob = audioBufferToWav(audioBuffer);
   
@@ -502,7 +479,7 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
 };
 
 // Обновленная функция импорта с поддержкой разделения треков
-export const importMidi = async (file: File): Promise<{ sequence1: string, sequence2: string }> => {
+export const importMidi = async (file: File): Promise<string[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -511,8 +488,7 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
         const arrayBuffer = event.target?.result as ArrayBuffer;
         const midi = new Midi(arrayBuffer);
         
-        let sequence1 = '';
-        let sequence2 = '';
+        const sequences: string[] = [];
         
         // Ищем треки с нотами
         const tracksWithNotes = midi.tracks.filter(t => t.notes.length > 0);
@@ -521,9 +497,10 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Первый трек идет в первую последовательность
-        if (tracksWithNotes[0]) {
-          tracksWithNotes[0].notes.forEach((note) => {
+        // Конвертируем каждый трек в последовательность
+        tracksWithNotes.forEach((track) => {
+          let sequenceText = '';
+          track.notes.forEach((note) => {
             const noteName = note.name.replace(/(\d)/, '');
             const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
             const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
@@ -532,26 +509,12 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence1 += noteText;
+            sequenceText += noteText;
           });
-        }
+          sequences.push(sequenceText);
+        });
         
-        // Второй трек (если есть) идет во вторую последовательность
-        if (tracksWithNotes[1]) {
-          tracksWithNotes[1].notes.forEach((note) => {
-            const noteName = note.name.replace(/(\d)/, '');
-            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
-            
-            let noteText = noteName;
-            if (octave !== 4) noteText += octave;
-            if (duration !== 1000) noteText += `(${duration})`;
-            
-            sequence2 += noteText;
-          });
-        }
-        
-        resolve({ sequence1, sequence2 });
+        resolve(sequences);
       } catch (error) {
         reject(new Error('Ошибка при чтении MIDI файла: ' + error));
       }
