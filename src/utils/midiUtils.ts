@@ -184,11 +184,12 @@ export const initializeAudio = async (instrument: string = 'piano') => {
   }
 };
 
-export const playSequence = async (notes: ParsedNote[], speed: number = 1, instrument: string = 'piano') => {
+export const playSequence = async (notes: ParsedNote[], speed: number = 1, instrument: string = 'piano', volume: number = 0.7) => {
   await initializeAudio(instrument);
   
   // Создаем новый инструмент для этой последовательности
   const synth = createInstrument(instrument);
+  synth.volume.value = Tone.gainToDb(volume); // Устанавливаем громкость
   synthInstances.push(synth);
 
   let currentTime = 0;

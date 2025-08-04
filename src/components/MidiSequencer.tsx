@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, Heart } from 'lucide-react';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, Heart, VolumeX, Volume2, Plus, Minus } from 'lucide-react';
 import MidiGallery from './MidiGallery';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
@@ -45,6 +45,12 @@ const MidiSequencer = React.forwardRef<{
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   const [galleryName, setGalleryName] = useState('');
   const [galleryAuthor, setGalleryAuthor] = useState('');
+  const [isMuted1, setIsMuted1] = useState(false);
+  const [isMuted2, setIsMuted2] = useState(false);
+  const [isSolo1, setIsSolo1] = useState(false);
+  const [isSolo2, setIsSolo2] = useState(false);
+  const [volume1, setVolume1] = useState(0.7);
+  const [volume2, setVolume2] = useState(0.7);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
@@ -247,6 +253,56 @@ const MidiSequencer = React.forwardRef<{
     toast.success(`Длительность изменена ${multiplierText} (последовательность ${sequenceNumber})`);
   };
 
+  const handleVolumeChange = (sequenceNumber: number, delta: number) => {
+    if (sequenceNumber === 1) {
+      const newVolume = Math.max(0, Math.min(1, volume1 + delta));
+      setVolume1(newVolume);
+      // Воспроизводим тестовый звук с новой громкостью
+      const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
+      playSequence([testNote], 1, selectedInstrument, newVolume);
+    } else {
+      const newVolume = Math.max(0, Math.min(1, volume2 + delta));
+      setVolume2(newVolume);
+      // Воспроизводим тестовый звук с новой громкостью
+      const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
+      playSequence([testNote], 1, selectedInstrument2, newVolume);
+    }
+  };
+
+  const handleMute = (sequenceNumber: number) => {
+    if (sequenceNumber === 1) {
+      setIsMuted1(!isMuted1);
+      if (isSolo1) setIsSolo1(false);
+    } else {
+      setIsMuted2(!isMuted2);
+      if (isSolo2) setIsSolo2(false);
+    }
+  };
+
+  const handleSolo = (sequenceNumber: number) => {
+    if (sequenceNumber === 1) {
+      setIsSolo1(!isSolo1);
+      if (isSolo1) {
+        // Если выключаем solo, сбрасываем mute для другой последовательности
+        setIsMuted2(false);
+      } else {
+        // Если включаем solo, mute другую последовательность
+        setIsMuted2(true);
+        setIsSolo2(false);
+      }
+    } else {
+      setIsSolo2(!isSolo2);
+      if (isSolo2) {
+        // Если выключаем solo, сбрасываем mute для другой последовательности
+        setIsMuted1(false);
+      } else {
+        // Если включаем solo, mute другую последовательность
+        setIsMuted1(true);
+        setIsSolo1(false);
+      }
+    }
+  };
+
   const handlePlay = async () => {
     if (isPlaying) {
       stopPlayback();
@@ -263,15 +319,15 @@ const MidiSequencer = React.forwardRef<{
       setCurrentNoteIndex(-1);
       setCurrentNoteIndex2(-1);
       
-      // Воспроизводим обе последовательности одновременно
+      // Воспроизводим обе последовательности одновременно с учетом mute/solo
       const playPromises = [];
       
-      if (analysisResult.hasValidSequence) {
-        playPromises.push(playSequence(parsedNotes, speed[0], selectedInstrument));
+      if (analysisResult.hasValidSequence && !isMuted1) {
+        playPromises.push(playSequence(parsedNotes, speed[0], selectedInstrument, volume1));
       }
       
-      if (analysisResult2.hasValidSequence) {
-        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument2));
+      if (analysisResult2.hasValidSequence && !isMuted2) {
+        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument2, volume2));
       }
       
       await Promise.all(playPromises);
@@ -665,6 +721,40 @@ const MidiSequencer = React.forwardRef<{
                 placeholder="Последовательность 1"
                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
+              <div className="flex flex-col gap-1">
+                <Button
+                  onClick={() => handleMute(1)}
+                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isMuted1 ? 'bg-red-500 text-white' : ''}`}
+                  variant={isMuted1 ? 'default' : 'outline'}
+                  title="Mute последовательность 1"
+                >
+                  M
+                </Button>
+                <Button
+                  onClick={() => handleSolo(1)}
+                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isSolo1 ? 'bg-yellow-500 text-white' : ''}`}
+                  variant={isSolo1 ? 'default' : 'outline'}
+                  title="Solo последовательность 1"
+                >
+                  S
+                </Button>
+                <Button
+                  onClick={() => handleVolumeChange(1, 0.1)}
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
+                  variant="outline"
+                  title={`Увеличить громкость (${Math.round(volume1 * 100)}%)`}
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
+                <Button
+                  onClick={() => handleVolumeChange(1, -0.1)}
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
+                  variant="outline"
+                  title={`Уменьшить громкость (${Math.round(volume1 * 100)}%)`}
+                >
+                  <Minus className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -745,6 +835,40 @@ const MidiSequencer = React.forwardRef<{
                 placeholder="Последовательность 2"
                 className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
               />
+              <div className="flex flex-col gap-1">
+                <Button
+                  onClick={() => handleMute(2)}
+                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isMuted2 ? 'bg-red-500 text-white' : ''}`}
+                  variant={isMuted2 ? 'default' : 'outline'}
+                  title="Mute последовательность 2"
+                >
+                  M
+                </Button>
+                <Button
+                  onClick={() => handleSolo(2)}
+                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isSolo2 ? 'bg-yellow-500 text-white' : ''}`}
+                  variant={isSolo2 ? 'default' : 'outline'}
+                  title="Solo последовательность 2"
+                >
+                  S
+                </Button>
+                <Button
+                  onClick={() => handleVolumeChange(2, 0.1)}
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
+                  variant="outline"
+                  title={`Увеличить громкость (${Math.round(volume2 * 100)}%)`}
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
+                <Button
+                  onClick={() => handleVolumeChange(2, -0.1)}
+                  className="w-6 h-6 md:w-7 md:h-7 p-0"
+                  variant="outline"
+                  title={`Уменьшить громкость (${Math.round(volume2 * 100)}%)`}
+                >
+                  <Minus className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
           </div>
 
