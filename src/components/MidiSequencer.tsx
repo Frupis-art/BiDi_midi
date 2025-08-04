@@ -668,6 +668,24 @@ const MidiSequencer = React.forwardRef<{
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-xs md:text-sm font-medium">
+              Инструмент 1
+            </label>
+            <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
+              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {instruments.map((instrument) => (
+                  <SelectItem key={instrument.value} value={instrument.value}>
+                    {instrument.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="p-2 md:p-3 bg-muted rounded-md">
             <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
             <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
@@ -730,34 +748,9 @@ const MidiSequencer = React.forwardRef<{
             </div>
           </div>
 
-          <div className="p-2 md:p-3 bg-muted rounded-md">
-            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
-              {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
-            </div>
-          </div>
-
           <div className="space-y-2">
             <label className="text-xs md:text-sm font-medium">
-              Инструмент для последовательности 1
-            </label>
-            <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
-              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {instruments.map((instrument) => (
-                  <SelectItem key={instrument.value} value={instrument.value}>
-                    {instrument.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs md:text-sm font-medium">
-              Инструмент для последовательности 2
+              Инструмент 2
             </label>
             <Select value={selectedInstrument2} onValueChange={setSelectedInstrument2}>
               <SelectTrigger className="w-full h-9 md:h-10 text-sm">
@@ -771,6 +764,13 @@ const MidiSequencer = React.forwardRef<{
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="p-2 md:p-3 bg-muted rounded-md">
+            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
+            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+              {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
+            </div>
           </div>
 
           <div className="space-y-2">
