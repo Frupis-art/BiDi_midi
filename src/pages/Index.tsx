@@ -27,14 +27,13 @@ const Index = () => {
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [prevNoteStates, setPrevNoteStates] = useState<Record<number, NoteImageState>>({});
-  const [prevInstrument, setPrevInstrument] = useState("");
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
     registerPlaybackEndCallback: (callback: () => void) => void;
   }>(null);
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const imageCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchInstruments = async () => {
@@ -186,7 +185,6 @@ const Index = () => {
       };
     });
     setNoteStates(newStates);
-    setPrevNoteStates({});
   };
 
   const handlePlayWithDelay = () => {
@@ -281,14 +279,45 @@ const Index = () => {
     return { paths, hasAlts };
   };
 
+  // Функция для принудительной перезагрузки изображений
+  const refreshImages = async () => {
+    if (parsedNotes.length === 0) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const newStates: Record<number, NoteImageState> = {};
+      
+      // Создаем массив промисов для параллельной проверки
+      const promises = parsedNotes.map(async (note, index) => {
+        const { paths, hasAlts } = await getAvailablePaths(note);
+        return { index, paths, hasAlts };
+      });
+      
+      // Ожидаем выполнения всех проверок
+      const results = await Promise.all(promises);
+      
+      // Формируем новое состояние
+      results.forEach(({ index, paths, hasAlts }) => {
+        newStates[index] = {
+          currentIndex: 0,
+          availablePaths: paths,
+          hasAlts
+        };
+      });
+      
+      setNoteStates(newStates);
+    } catch (error) {
+      console.error("Error refreshing images:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Эффект для инициализации путей изображений с параллельной загрузкой
   useEffect(() => {
     const initializeImagePaths = async () => {
       if (parsedNotes.length === 0) return;
-      
-      // Сохраняем предыдущие состояния
-      setPrevNoteStates(noteStates);
-      setPrevInstrument(instrument);
       
       setIsLoading(true);
       
@@ -324,6 +353,27 @@ const Index = () => {
     initializeImagePaths();
   }, [parsedNotes, instrument]);
 
+  // Эффект для автоматического обновления изображений через 1.5 секунды
+  useEffect(() => {
+    if (Object.keys(noteStates).length > 0) {
+      imageCheckTimeoutRef.current = setTimeout(() => {
+        const hasMissingImages = Object.values(noteStates).some(
+          state => state.availablePaths.includes('/tabs/NO_notes.png')
+        );
+        
+        if (hasMissingImages) {
+          refreshImages();
+        }
+      }, 1500);
+    }
+    
+    return () => {
+      if (imageCheckTimeoutRef.current) {
+        clearTimeout(imageCheckTimeoutRef.current);
+      }
+    };
+  }, [noteStates]);
+
   const handleImageClick = (index: number) => {
     setNoteStates(prev => {
       const state = prev[index];
@@ -342,11 +392,6 @@ const Index = () => {
   };
 
   const getImagePath = (index: number): string => {
-    // Если идет загрузка, используем предыдущие состояния
-    if (isLoading && prevInstrument === instrument && prevNoteStates[index]) {
-      return prevNoteStates[index].availablePaths[prevNoteStates[index].currentIndex] || '/tabs/NO_notes.png';
-    }
-    
     const state = noteStates[index];
     if (!state || state.availablePaths.length === 0) {
       return '/tabs/NO_notes.png';
@@ -453,6 +498,19 @@ const Index = () => {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-semibold">Результат:</h3>
                   <div className="flex gap-2">
+                    <button
+                      onClick={refreshImages}
+                      disabled={isLoading || isTakingScreenshot}
+                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
+                        isLoading || isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                      title="Обновить изображения"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    
                     <button
                       onClick={handlePlayWithDelay}
                       disabled={isTakingScreenshot || isLoading}
