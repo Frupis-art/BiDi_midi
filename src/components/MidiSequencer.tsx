@@ -72,6 +72,7 @@ const MidiSequencer = React.forwardRef<{
   const [galleryAuthor, setGalleryAuthor] = useState('');
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const xmlFileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
 
   const instruments = [
@@ -419,7 +420,6 @@ const MidiSequencer = React.forwardRef<{
       return;
     }
 
-    try {
       const { sequence1, sequence2 } = await importMidi(file);
       
       // Обновляем первые две последовательности
@@ -445,6 +445,45 @@ const MidiSequencer = React.forwardRef<{
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleXmlFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.xml') && !file.name.toLowerCase().endsWith('.musicxml')) {
+      toast.error('Пожалуйста, выберите XML файл (.xml или .musicxml)');
+      return;
+    }
+
+    try {
+      const { importXml } = await import('@/utils/midiUtils');
+      const { sequence1, sequence2 } = await importXml(file);
+      
+      // Обновляем первые две последовательности
+      if (sequence1) {
+        updateSequence(0, 'sequence', sequence1);
+      }
+      if (sequence2 && sequences.length > 1) {
+        updateSequence(1, 'sequence', sequence2);
+      }
+      
+      let message = 'XML файл успешно импортирован';
+      if (sequence1 && sequence2) {
+        message += ' (2 партии)';
+      } else if (sequence1) {
+        message += ' (1 партия)';
+      }
+      
+      toast.success(message);
+    } catch (error) {
+      console.error('XML Import error:', error);
+      toast.error('Ошибка при импорте XML: ' + (error as Error).message);
+    }
+
+    if (xmlFileInputRef.current) {
+      xmlFileInputRef.current.value = '';
     }
   };
 
@@ -592,6 +631,13 @@ const MidiSequencer = React.forwardRef<{
                   onChange={handleFileImport}
                   className="hidden"
                 />
+                <input
+                  ref={xmlFileInputRef}
+                  type="file"
+                  accept=".xml,.musicxml"
+                  onChange={handleXmlFileImport}
+                  className="hidden"
+                />
                 <Button
                   onClick={() => {
                     setSequences(prev => prev.map(seq => ({ ...seq, sequence: '' })));
@@ -613,6 +659,16 @@ const MidiSequencer = React.forwardRef<{
                   <Upload className="w-3 h-3 mr-1" />
                   <span className="hidden md:inline">{t('openMidi')}</span>
                   <span className="md:hidden">MIDI</span>
+                </Button>
+                <Button
+                  onClick={() => xmlFileInputRef.current?.click()}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs px-2 py-1 h-7 md:h-8"
+                >
+                  <Upload className="w-3 h-3 mr-1" />
+                  <span className="hidden md:inline">Открыть XML</span>
+                  <span className="md:hidden">XML</span>
                 </Button>
               </div>
             </div>
