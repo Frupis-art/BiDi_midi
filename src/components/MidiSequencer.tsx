@@ -63,6 +63,9 @@ const MidiSequencer = React.forwardRef<{
     }
   ]);
   
+  // Сохраняем историю удаленных последовательностей
+  const [deletedSequences, setDeletedSequences] = useState<SequenceData[]>([]);
+  
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [speed, setSpeed] = useState([1]);
@@ -88,21 +91,31 @@ const MidiSequencer = React.forwardRef<{
 
   // Добавление новой последовательности
   const addSequence = () => {
-    const newSequence: SequenceData = {
-      sequence: '',
-      parsedNotes: [],
-      selectedInstrument: 'piano',
-      isMuted: false,
-      isSolo: false,
-      volume: 0.7,
-      currentNoteIndex: -1
-    };
-    setSequences(prev => [...prev, newSequence]);
+    // Проверяем, есть ли сохраненная последовательность для восстановления
+    if (deletedSequences.length > 0) {
+      const restoredSequence = deletedSequences[deletedSequences.length - 1];
+      setSequences(prev => [...prev, restoredSequence]);
+      setDeletedSequences(prev => prev.slice(0, -1)); // Удаляем восстановленную из истории
+    } else {
+      const newSequence: SequenceData = {
+        sequence: '',
+        parsedNotes: [],
+        selectedInstrument: 'piano',
+        isMuted: false,
+        isSolo: false,
+        volume: 0.7,
+        currentNoteIndex: -1
+      };
+      setSequences(prev => [...prev, newSequence]);
+    }
   };
 
   // Удаление последней последовательности
   const removeSequence = () => {
     if (sequences.length > 1) {
+      const lastSequence = sequences[sequences.length - 1];
+      // Сохраняем удаляемую последовательность в истории
+      setDeletedSequences(prev => [...prev, lastSequence]);
       setSequences(prev => prev.slice(0, -1));
     }
   };
