@@ -150,13 +150,16 @@ const MidiSequencer = React.forwardRef<{
 
   // Обновляем состояние при изменении результата анализа
   useEffect(() => {
-    const updatedSequences = sequences.map((seq, index) => ({
-      ...seq,
-      parsedNotes: analysisResults[index]?.notes || []
-    }));
+    const hasValidSeq = analysisResults.some(result => result.hasValidSequence);
+    setHasValidSequence(hasValidSeq);
     
-    setSequences(updatedSequences);
-    setHasValidSequence(analysisResults.some(result => result.hasValidSequence));
+    // Обновляем только parsedNotes, если они изменились
+    setSequences(prevSequences => 
+      prevSequences.map((seq, index) => ({
+        ...seq,
+        parsedNotes: analysisResults[index]?.notes || []
+      }))
+    );
   }, [analysisResults]);
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
