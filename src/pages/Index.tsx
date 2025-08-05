@@ -27,6 +27,7 @@ const Index = () => {
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshAttempts, setRefreshAttempts] = useState(0); // Счетчик попыток перезагрузки
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -34,6 +35,7 @@ const Index = () => {
   }>(null);
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const imageCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const fetchInstruments = async () => {
@@ -112,7 +114,7 @@ const Index = () => {
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTabInput(e.target.value);
     e.target.style.height = 'auto';
-    e.target.style.height = e.target.scrollHeight + 'px';
+    e.target.style.height = Math.min(e.target.scrollHeight, 300) + 'px';
   };
 
   const waitForImages = (container: HTMLElement) => {
@@ -311,6 +313,8 @@ const Index = () => {
       console.error("Error refreshing images:", error);
     } finally {
       setIsLoading(false);
+      // Увеличиваем счетчик попыток
+      setRefreshAttempts(prev => prev + 1);
     }
   };
 
@@ -355,7 +359,7 @@ const Index = () => {
 
   // Эффект для автоматического обновления изображений через 1.5 секунды
   useEffect(() => {
-    if (Object.keys(noteStates).length > 0) {
+    if (Object.keys(noteStates).length > 0 && refreshAttempts < 2) {
       imageCheckTimeoutRef.current = setTimeout(() => {
         const hasMissingImages = Object.values(noteStates).some(
           state => state.availablePaths.includes('/tabs/NO_notes.png')
@@ -372,7 +376,12 @@ const Index = () => {
         clearTimeout(imageCheckTimeoutRef.current);
       }
     };
-  }, [noteStates]);
+  }, [noteStates, refreshAttempts]);
+
+  // Сбрасываем счетчик попыток при смене инструмента или нот
+  useEffect(() => {
+    setRefreshAttempts(0);
+  }, [instrument, parsedNotes]);
 
   const handleImageClick = (index: number) => {
     setNoteStates(prev => {
@@ -415,14 +424,51 @@ const Index = () => {
             <div className="mb-4">
               <label className="block mb-2 font-medium">Введите ноты:</label>
                 <div className="flex gap-2">
-                <textarea
-                  value={tabInput}
-                  onChange={handleTextareaChange}
-                  placeholder="Пример: C4D#5(500)PG3(2000)"
-                  className="flex-1 border-2 border-[#e2e8f0] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#0f172a] min-h-[100px] resize-none"
-                  rows={3}
-                  style={{ minHeight: '100px' }}
-                />
+<div className="relative flex-1">
+  <textarea
+    ref={textareaRef}
+    value={tabInput}
+    onChange={handleTextareaChange}
+    placeholder="Пример: C4D#5(500)PG3(2000)"
+    className="w-full border-2 border-[#e2e8f0] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#0f172a] min-h-[100px] resize-none"
+    style={{ 
+      minHeight: '100px', 
+      maxHeight: '300px', 
+      fontSize: '13px',
+      paddingRight: '25px' 
+    }}
+  />
+  <div 
+    className="absolute right-0.5 bottom-1.5 w-4 h-4 cursor-nwse-resize resize-handle"
+    style={{
+      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cg stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M2 14 L14 2'/%3E%3Cpath d='M6 14 L14 6'/%3E%3C/g%3E%3C/svg%3E\")",
+      backgroundSize: '80%',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      opacity: 0.7,
+      transition: 'opacity 0.2s',
+    }}
+    onMouseDown={(e) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = textareaRef.current?.offsetHeight || 0;
+      
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!textareaRef.current) return;
+        const newHeight = startHeight + (moveEvent.clientY - startY);
+        textareaRef.current.style.height = `${Math.max(100, Math.min(400, newHeight))}px`;
+      };
+      
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+      
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    }}
+  />
+</div>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={handleTabConvert}
@@ -643,6 +689,10 @@ const Index = () => {
       </div>
       
       <style>{`
+
+        .resize-handle:hover {
+    opacity: 1;
+  }
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 20px;
