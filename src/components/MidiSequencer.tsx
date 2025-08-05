@@ -25,32 +25,51 @@ interface ParsedNote {
   errorMessage?: string;
 }
 
+interface SequenceData {
+  sequence: string;
+  parsedNotes: ParsedNote[];
+  selectedInstrument: string;
+  isMuted: boolean;
+  isSolo: boolean;
+  volume: number;
+  currentNoteIndex: number;
+}
+
 const MidiSequencer = React.forwardRef<{ 
   handlePlay: () => void;
   registerPlaybackEndCallback: (callback: () => void) => void;
 }>((props, ref) => {
   const { language, toggleLanguage, t } = useLanguage();
-  const [sequence, setSequence] = useState('f#5e5d5c#5babc#5');
-  const [sequence2, setSequence2] = useState('d3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)');
-  const [parsedNotes, setParsedNotes] = useState<ParsedNote[]>([]);
-  const [parsedNotes2, setParsedNotes2] = useState<ParsedNote[]>([]);
+  
+  // Инициализируем с двумя последовательностями
+  const [sequences, setSequences] = useState<SequenceData[]>([
+    {
+      sequence: 'f#5e5d5c#5babc#5',
+      parsedNotes: [],
+      selectedInstrument: 'piano',
+      isMuted: false,
+      isSolo: false,
+      volume: 0.7,
+      currentNoteIndex: -1
+    },
+    {
+      sequence: 'd3(250)a3(250)d(250)f#(250) a2(250)e3(250)a3(250)c#(250) b2(250)f#3(250)b3(250)d(250) f#2(250)c#(250)a3(250)c#(250) g2(250)d3(250)g3(250)b3(250) d2(250)a2(250)d3(250)f#3(250) g2(250)d3(250)g3(250)b3(250) a2(250)e3(250)a3(250)c#(250)',
+      parsedNotes: [],
+      selectedInstrument: 'piano',
+      isMuted: false,
+      isSolo: false,
+      volume: 0.7,
+      currentNoteIndex: -1
+    }
+  ]);
+  
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentNoteIndex, setCurrentNoteIndex] = useState(-1);
-  const [currentNoteIndex2, setCurrentNoteIndex2] = useState(-1);
   const [hasValidSequence, setHasValidSequence] = useState(false);
   const [speed, setSpeed] = useState([1]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [selectedInstrument, setSelectedInstrument] = useState('piano');
-  const [selectedInstrument2, setSelectedInstrument2] = useState('piano');
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   const [galleryName, setGalleryName] = useState('');
   const [galleryAuthor, setGalleryAuthor] = useState('');
-  const [isMuted1, setIsMuted1] = useState(false);
-  const [isMuted2, setIsMuted2] = useState(false);
-  const [isSolo1, setIsSolo1] = useState(false);
-  const [isSolo2, setIsSolo2] = useState(false);
-  const [volume1, setVolume1] = useState(0.7);
-  const [volume2, setVolume2] = useState(0.7);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
@@ -67,50 +86,65 @@ const MidiSequencer = React.forwardRef<{
     { value: 'guitar', label: 'Гитара' }
   ];
 
-  // Анализ в реальном времени для первой последовательности
-  const analysisResult = useMemo(() => {
-    if (!sequence.trim()) {
-      return { notes: [], hasErrors: false, hasValidSequence: false };
-    }
+  // Добавление новой последовательности
+  const addSequence = () => {
+    const newSequence: SequenceData = {
+      sequence: '',
+      parsedNotes: [],
+      selectedInstrument: 'piano',
+      isMuted: false,
+      isSolo: false,
+      volume: 0.7,
+      currentNoteIndex: -1
+    };
+    setSequences(prev => [...prev, newSequence]);
+  };
 
-    try {
-      const notes = parseNoteSequence(sequence, t);
-      const hasErrors = notes.some(note => note.isError);
-      return {
-        notes,
-        hasErrors,
-        hasValidSequence: !hasErrors && notes.length > 0
-      };
-    } catch (error) {
-      return { notes: [], hasErrors: true, hasValidSequence: false };
+  // Удаление последней последовательности
+  const removeSequence = () => {
+    if (sequences.length > 1) {
+      setSequences(prev => prev.slice(0, -1));
     }
-  }, [sequence, t]);
+  };
 
-  // Анализ в реальном времени для второй последовательности
-  const analysisResult2 = useMemo(() => {
-    if (!sequence2.trim()) {
-      return { notes: [], hasErrors: false, hasValidSequence: false };
-    }
+  // Обновление последовательности
+  const updateSequence = (index: number, field: keyof SequenceData, value: any) => {
+    setSequences(prev => prev.map((seq, i) => 
+      i === index ? { ...seq, [field]: value } : seq
+    ));
+  };
 
-    try {
-      const notes = parseNoteSequence(sequence2, t);
-      const hasErrors = notes.some(note => note.isError);
-      return {
-        notes,
-        hasErrors,
-        hasValidSequence: !hasErrors && notes.length > 0
-      };
-    } catch (error) {
-      return { notes: [], hasErrors: true, hasValidSequence: false };
-    }
-  }, [sequence2, t]);
+  // Анализ всех последовательностей
+  const analysisResults = useMemo(() => {
+    return sequences.map(seq => {
+      if (!seq.sequence.trim()) {
+        return { notes: [], hasErrors: false, hasValidSequence: false };
+      }
+
+      try {
+        const notes = parseNoteSequence(seq.sequence, t);
+        const hasErrors = notes.some(note => note.isError);
+        return {
+          notes,
+          hasErrors,
+          hasValidSequence: !hasErrors && notes.length > 0
+        };
+      } catch (error) {
+        return { notes: [], hasErrors: true, hasValidSequence: false };
+      }
+    });
+  }, [sequences, t]);
 
   // Обновляем состояние при изменении результата анализа
   useEffect(() => {
-    setParsedNotes(analysisResult.notes);
-    setParsedNotes2(analysisResult2.notes);
-    setHasValidSequence(analysisResult.hasValidSequence || analysisResult2.hasValidSequence);
-  }, [analysisResult, analysisResult2]);
+    const updatedSequences = sequences.map((seq, index) => ({
+      ...seq,
+      parsedNotes: analysisResults[index]?.notes || []
+    }));
+    
+    setSequences(updatedSequences);
+    setHasValidSequence(analysisResults.some(result => result.hasValidSequence));
+  }, [analysisResults]);
 
   const transposeNote = (note: string, octave: number, semitones: number): { note: string, octave: number } => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -130,9 +164,6 @@ const MidiSequencer = React.forwardRef<{
     let newNoteIndex = noteIndex + semitones;
     let newOctave = octave;
     
-    console.log(`Транспозиция: ${note}${octave} + ${semitones} полутонов`);
-    console.log(`Исходный индекс ноты: ${noteIndex}, новый индекс: ${newNoteIndex}, октава: ${newOctave}`);
-    
     while (newNoteIndex < 0) {
       newNoteIndex += 12;
       newOctave--;
@@ -142,13 +173,9 @@ const MidiSequencer = React.forwardRef<{
       newOctave++;
     }
     
-    console.log(`После обработки индексов: нота индекс ${newNoteIndex}, октава ${newOctave}`);
-    
     // Циклическое переключение октав
     if (newOctave < 0) newOctave = 8;
     if (newOctave > 8) newOctave = 0;
-    
-    console.log(`Итоговая нота: ${notes[newNoteIndex]}${newOctave}`);
     
     return {
       note: notes[newNoteIndex],
@@ -156,15 +183,16 @@ const MidiSequencer = React.forwardRef<{
     };
   };
 
-  const transposeSequence = (semitones: number) => {
-    if (!analysisResult.hasValidSequence) {
+  const transposeSequence = (sequenceIndex: number, semitones: number) => {
+    const analysisResult = analysisResults[sequenceIndex];
+    if (!analysisResult?.hasValidSequence) {
       toast.error(t('playbackError'));
       return;
     }
 
     let newSequence = '';
     
-    for (const note of parsedNotes) {
+    for (const note of sequences[sequenceIndex].parsedNotes) {
       if (note.isPause || note.isError) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
@@ -178,51 +206,21 @@ const MidiSequencer = React.forwardRef<{
       }
     }
     
-    setSequence(newSequence);
-    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 1)`);
+    updateSequence(sequenceIndex, 'sequence', newSequence);
+    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность ${sequenceIndex + 1})`);
   };
 
-  const transposeSequence2 = (semitones: number) => {
-    if (!analysisResult2.hasValidSequence) {
+  const multiplyDuration = (multiplier: number, sequenceIndex: number) => {
+    const analysisResult = analysisResults[sequenceIndex];
+    if (!analysisResult?.hasValidSequence) {
       toast.error(t('playbackError'));
       return;
     }
 
     let newSequence = '';
     
-    for (const note of parsedNotes2) {
-      if (note.isPause || note.isError) {
-        newSequence += note.originalText;
-      } else if (note.note && note.octave !== undefined) {
-        const { note: newNote, octave: newOctave } = transposeNote(note.note, note.octave, semitones);
-        
-        let noteText = newNote;
-        if (newOctave !== 4) noteText += newOctave;
-        if (note.duration !== 1000) noteText += `(${note.duration})`;
-        
-        newSequence += noteText;
-      }
-    }
-    
-    setSequence2(newSequence);
-    toast.success(`${t('transposed')} ${semitones > 0 ? '+' : ''}${semitones} (последовательность 2)`);
-  };
-
-  const multiplyDuration = (multiplier: number, sequenceNumber: number) => {
-    const currentSequence = sequenceNumber === 1 ? sequence : sequence2;
-    const currentNotes = sequenceNumber === 1 ? parsedNotes : parsedNotes2;
-    const currentAnalysis = sequenceNumber === 1 ? analysisResult : analysisResult2;
-    
-    if (!currentAnalysis.hasValidSequence) {
-      toast.error(t('playbackError'));
-      return;
-    }
-
-    let newSequence = '';
-    
-    for (const note of currentNotes) {
+    for (const note of sequences[sequenceIndex].parsedNotes) {
       if (note.isPause) {
-        // Для пауз тоже применяем множитель
         const newDuration = Math.ceil(note.duration * multiplier);
         if (newDuration !== 1000) {
           newSequence += `P(${newDuration})`;
@@ -232,7 +230,6 @@ const MidiSequencer = React.forwardRef<{
       } else if (note.isError) {
         newSequence += note.originalText;
       } else if (note.note && note.octave !== undefined) {
-        // Для нот применяем множитель к длительности
         const newDuration = Math.ceil(note.duration * multiplier);
         
         let noteText = note.note;
@@ -243,63 +240,44 @@ const MidiSequencer = React.forwardRef<{
       }
     }
     
-    if (sequenceNumber === 1) {
-      setSequence(newSequence);
-    } else {
-      setSequence2(newSequence);
-    }
-    
+    updateSequence(sequenceIndex, 'sequence', newSequence);
     const multiplierText = multiplier === 0.5 ? 'x0.5' : 'x2';
-    toast.success(`Длительность изменена ${multiplierText} (последовательность ${sequenceNumber})`);
+    toast.success(`Длительность изменена ${multiplierText} (последовательность ${sequenceIndex + 1})`);
   };
 
-  const handleVolumeChange = (sequenceNumber: number, delta: number) => {
-    if (sequenceNumber === 1) {
-      const newVolume = Math.max(0, Math.min(1, volume1 + delta));
-      setVolume1(newVolume);
-      // Воспроизводим тестовый звук с новой громкостью
-      const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
-      playSequence([testNote], 1, selectedInstrument, newVolume);
-    } else {
-      const newVolume = Math.max(0, Math.min(1, volume2 + delta));
-      setVolume2(newVolume);
-      // Воспроизводим тестовый звук с новой громкостью
-      const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
-      playSequence([testNote], 1, selectedInstrument2, newVolume);
+  const handleVolumeChange = (sequenceIndex: number, delta: number) => {
+    const currentVolume = sequences[sequenceIndex].volume;
+    const newVolume = Math.max(0, Math.min(1, currentVolume + delta));
+    updateSequence(sequenceIndex, 'volume', newVolume);
+    
+    // Воспроизводим тестовый звук с новой громкостью
+    const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
+    playSequence([testNote], 1, sequences[sequenceIndex].selectedInstrument, newVolume);
+  };
+
+  const handleMute = (sequenceIndex: number) => {
+    const currentMuted = sequences[sequenceIndex].isMuted;
+    updateSequence(sequenceIndex, 'isMuted', !currentMuted);
+    
+    if (sequences[sequenceIndex].isSolo) {
+      updateSequence(sequenceIndex, 'isSolo', false);
     }
   };
 
-  const handleMute = (sequenceNumber: number) => {
-    if (sequenceNumber === 1) {
-      setIsMuted1(!isMuted1);
-      if (isSolo1) setIsSolo1(false);
+  const handleSolo = (sequenceIndex: number) => {
+    const currentSolo = sequences[sequenceIndex].isSolo;
+    updateSequence(sequenceIndex, 'isSolo', !currentSolo);
+    
+    // Если включаем solo, mute остальные последовательности
+    if (!currentSolo) {
+      setSequences(prev => prev.map((seq, i) => 
+        i === sequenceIndex 
+          ? { ...seq, isSolo: true }
+          : { ...seq, isMuted: true, isSolo: false }
+      ));
     } else {
-      setIsMuted2(!isMuted2);
-      if (isSolo2) setIsSolo2(false);
-    }
-  };
-
-  const handleSolo = (sequenceNumber: number) => {
-    if (sequenceNumber === 1) {
-      setIsSolo1(!isSolo1);
-      if (isSolo1) {
-        // Если выключаем solo, сбрасываем mute для другой последовательности
-        setIsMuted2(false);
-      } else {
-        // Если включаем solo, mute другую последовательность
-        setIsMuted2(true);
-        setIsSolo2(false);
-      }
-    } else {
-      setIsSolo2(!isSolo2);
-      if (isSolo2) {
-        // Если выключаем solo, сбрасываем mute для другой последовательности
-        setIsMuted1(false);
-      } else {
-        // Если включаем solo, mute другую последовательность
-        setIsMuted1(true);
-        setIsSolo1(false);
-      }
+      // Если выключаем solo, сбрасываем mute для всех
+      setSequences(prev => prev.map(seq => ({ ...seq, isMuted: false })));
     }
   };
 
@@ -316,83 +294,68 @@ const MidiSequencer = React.forwardRef<{
 
     try {
       setIsPlaying(true);
-      setCurrentNoteIndex(-1);
-      setCurrentNoteIndex2(-1);
       
-      // Воспроизводим обе последовательности одновременно с учетом mute/solo
+      // Сбрасываем индексы для всех последовательностей
+      setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
+      
+      // Воспроизводим все немутированные последовательности одновременно
       const playPromises = [];
       
-      if (analysisResult.hasValidSequence && !isMuted1) {
-        playPromises.push(playSequence(parsedNotes, speed[0], selectedInstrument, volume1));
-      }
-      
-      if (analysisResult2.hasValidSequence && !isMuted2) {
-        playPromises.push(playSequence(parsedNotes2, speed[0], selectedInstrument2, volume2));
+      for (let i = 0; i < sequences.length; i++) {
+        const seq = sequences[i];
+        const result = analysisResults[i];
+        
+        if (result?.hasValidSequence && !seq.isMuted) {
+          playPromises.push(playSequence(seq.parsedNotes, speed[0], seq.selectedInstrument, seq.volume));
+        }
       }
       
       await Promise.all(playPromises);
       
       timeoutRefs.current = [];
       
-      // Подсветка для первой последовательности
-      if (analysisResult.hasValidSequence) {
-        let currentTime = 0;
-        parsedNotes.forEach((note, index) => {
-          const adjustedDuration = note.duration / speed[0];
-          
-          const startTimeout = setTimeout(() => {
-            setCurrentNoteIndex(index);
-          }, currentTime);
-          
-          const endTimeout = setTimeout(() => {
-            if (index === parsedNotes.length - 1) {
-              setCurrentNoteIndex(-1);
-            }
-          }, currentTime + adjustedDuration);
-          
-          timeoutRefs.current.push(startTimeout, endTimeout);
-          currentTime += adjustedDuration;
-        });
-      }
-      
-      // Подсветка для второй последовательности
-      if (analysisResult2.hasValidSequence) {
-        let currentTime = 0;
-        parsedNotes2.forEach((note, index) => {
-          const adjustedDuration = note.duration / speed[0];
-          
-          const startTimeout = setTimeout(() => {
-            setCurrentNoteIndex2(index);
-          }, currentTime);
-          
-          const endTimeout = setTimeout(() => {
-            if (index === parsedNotes2.length - 1) {
-              setCurrentNoteIndex2(-1);
-            }
-          }, currentTime + adjustedDuration);
-          
-          timeoutRefs.current.push(startTimeout, endTimeout);
-          currentTime += adjustedDuration;
-        });
+      // Подсветка для всех последовательностей
+      for (let seqIndex = 0; seqIndex < sequences.length; seqIndex++) {
+        const result = analysisResults[seqIndex];
+        
+        if (result?.hasValidSequence) {
+          let currentTime = 0;
+          sequences[seqIndex].parsedNotes.forEach((note, noteIndex) => {
+            const adjustedDuration = note.duration / speed[0];
+            
+            const startTimeout = setTimeout(() => {
+              updateSequence(seqIndex, 'currentNoteIndex', noteIndex);
+            }, currentTime);
+            
+            const endTimeout = setTimeout(() => {
+              if (noteIndex === sequences[seqIndex].parsedNotes.length - 1) {
+                updateSequence(seqIndex, 'currentNoteIndex', -1);
+              }
+            }, currentTime + adjustedDuration);
+            
+            timeoutRefs.current.push(startTimeout, endTimeout);
+            currentTime += adjustedDuration;
+          });
+        }
       }
       
       // Определяем максимальную длительность для завершения воспроизведения
-      const maxDuration1 = analysisResult.hasValidSequence ? 
-        parsedNotes.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
-      const maxDuration2 = analysisResult2.hasValidSequence ? 
-        parsedNotes2.reduce((sum, note) => sum + note.duration / speed[0], 0) : 0;
-      
-      const maxDuration = Math.max(maxDuration1, maxDuration2);
+      let maxDuration = 0;
+      for (let i = 0; i < sequences.length; i++) {
+        const result = analysisResults[i];
+        if (result?.hasValidSequence) {
+          const duration = sequences[i].parsedNotes.reduce((sum, note) => sum + note.duration / speed[0], 0);
+          maxDuration = Math.max(maxDuration, duration);
+        }
+      }
       
       const finishTimeout = setTimeout(() => {
         setIsPlaying(false);
-        setCurrentNoteIndex(-1);
-        setCurrentNoteIndex2(-1);
+        setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
         
-        // Call the registered callback if it exists
         if (playbackEndCallbackRef.current) {
           playbackEndCallbackRef.current();
-          playbackEndCallbackRef.current = null; // Clear after use
+          playbackEndCallbackRef.current = null;
         }
         
         toast.success(t('playbackCompleted'));
@@ -403,8 +366,7 @@ const MidiSequencer = React.forwardRef<{
     } catch (error) {
       console.error('Playback error:', error);
       setIsPlaying(false);
-      setCurrentNoteIndex(-1);
-      setCurrentNoteIndex2(-1);
+      setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
       toast.error(t('playbackError'));
     }
   };
@@ -412,8 +374,7 @@ const MidiSequencer = React.forwardRef<{
   const stopPlayback = () => {
     stopSequence();
     setIsPlaying(false);
-    setCurrentNoteIndex(-1);
-    setCurrentNoteIndex2(-1);
+    setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
     
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
     timeoutRefs.current = [];
@@ -430,8 +391,11 @@ const MidiSequencer = React.forwardRef<{
     }
 
     try {
-      // Передаем обе последовательности в функцию экспорта
-      await exportMidi(parsedNotes, parsedNotes2, speed[0], { format });
+      // Передаем первые две последовательности в функцию экспорта для совместимости
+      const seq1 = sequences[0]?.parsedNotes || [];
+      const seq2 = sequences[1]?.parsedNotes || [];
+      
+      await exportMidi(seq1, seq2, speed[0], { format });
       
       const messages = {
         midi: t('midiSaved'),
@@ -456,10 +420,15 @@ const MidiSequencer = React.forwardRef<{
     }
 
     try {
-      // Получаем обе последовательности из импорта
       const { sequence1, sequence2 } = await importMidi(file);
-      setSequence(sequence1);
-      setSequence2(sequence2);
+      
+      // Обновляем первые две последовательности
+      if (sequence1) {
+        updateSequence(0, 'sequence', sequence1);
+      }
+      if (sequence2 && sequences.length > 1) {
+        updateSequence(1, 'sequence', sequence2);
+      }
       
       let message = t('midiImported');
       if (sequence1 && sequence2) {
@@ -502,87 +471,57 @@ const MidiSequencer = React.forwardRef<{
 
   // Функция добавления в галерею
   const handleGalleryUpload = () => {
-    console.log('handleGalleryUpload вызвана');
-    console.log('galleryName:', galleryName);
-    console.log('galleryAuthor:', galleryAuthor);
-    console.log('sequence:', sequence);
-    console.log('sequence2:', sequence2);
-    
     if (!galleryName.trim() || !galleryAuthor.trim()) {
-      console.log('Ошибка: пустые поля');
       toast.error('Заполните все поля');
       return;
     }
 
     if (galleryName.length < 3 || galleryName.length > 12) {
-      console.log('Ошибка: неправильная длина названия');
       toast.error('Название должно быть от 3 до 12 символов');
       return;
     }
 
     if (galleryAuthor.length < 3 || galleryAuthor.length > 12) {
-      console.log('Ошибка: неправильная длина автора');
       toast.error('Автор должен быть от 3 до 12 символов');
       return;
     }
 
-    // Проверка на допустимые символы
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
-      console.log('Ошибка: недопустимые символы');
       toast.error('Используйте только буквы, цифры, пробелы и дефисы');
       return;
     }
 
     try {
-      // Генерируем уникальный ID
       const fileId = Math.random().toString(36).substr(2, 5).toUpperCase();
-      console.log('Generated fileId:', fileId);
       
-      // Создаем объект файла
       const newFile = {
         id: fileId,
         name: galleryName.trim(),
         author: galleryAuthor.trim(),
-        sequence1: sequence,
-        sequence2: sequence2,
+        sequence1: sequences[0]?.sequence || '',
+        sequence2: sequences[1]?.sequence || '',
         rating: 0,
         userVotes: {},
         createdAt: Date.now()
       };
 
-      console.log('newFile объект:', newFile);
-
-      // Проверяем доступность localStorage
       if (typeof(Storage) === "undefined") {
-        console.log('Ошибка: localStorage недоступен');
         toast.error('Хранилище недоступно в вашем браузере');
         return;
       }
 
-      // Получаем существующие файлы
       const existingFilesStr = localStorage.getItem('midiGalleryFiles');
-      console.log('Существующие файлы (строка):', existingFilesStr);
-      
       const existingFiles = existingFilesStr ? JSON.parse(existingFilesStr) : [];
-      console.log('Существующие файлы (массив):', existingFiles);
-      
       const updatedFiles = [...existingFiles, newFile];
-      console.log('Обновленный массив файлов:', updatedFiles);
       
-      // Проверяем размер перед сохранением
       const dataSize = JSON.stringify(updatedFiles).length;
-      console.log('Размер данных (символы):', dataSize);
-      console.log('Размер данных (KB):', (dataSize / 1024).toFixed(2));
-      
-      if (dataSize > 4 * 1024 * 1024) { // 4MB предел
+      if (dataSize > 4 * 1024 * 1024) {
         toast.error('Галерея переполнена (лимит ~4MB). Удалите старые файлы.');
         return;
       }
       
-      // Сохраняем в localStorage
       localStorage.setItem('midiGalleryFiles', JSON.stringify(updatedFiles));
-      console.log('Файл сохранен в localStorage');
       
       setGalleryName('');
       setGalleryAuthor('');
@@ -590,7 +529,6 @@ const MidiSequencer = React.forwardRef<{
       
       const fileName = `${galleryName}_${galleryAuthor}_${fileId}.midi`;
       toast.success(`Файл ${fileName} добавлен в галерею`);
-      console.log('Успешно добавлен файл:', fileName);
       
     } catch (error) {
       console.error('Ошибка при сохранении в галерею:', error);
@@ -600,8 +538,12 @@ const MidiSequencer = React.forwardRef<{
 
   // Функция загрузки файла из галереи
   const handleLoadFromGallery = (sequence1: string, sequence2: string) => {
-    setSequence(sequence1);
-    setSequence2(sequence2);
+    if (sequence1) {
+      updateSequence(0, 'sequence', sequence1);
+    }
+    if (sequence2 && sequences.length > 1) {
+      updateSequence(1, 'sequence', sequence2);
+    }
   };
 
   useEffect(() => {
@@ -640,7 +582,7 @@ const MidiSequencer = React.forwardRef<{
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="sequence" className="text-xs md:text-sm font-medium">
-                Последовательность 1
+                Последовательности
               </label>
               <div className="flex items-center gap-1">
                 <input
@@ -652,8 +594,7 @@ const MidiSequencer = React.forwardRef<{
                 />
                 <Button
                   onClick={() => {
-                    setSequence('');
-                    setSequence2('');
+                    setSequences(prev => prev.map(seq => ({ ...seq, sequence: '' })));
                     toast.success('Поля очищены');
                   }}
                   variant="outline"
@@ -675,226 +616,165 @@ const MidiSequencer = React.forwardRef<{
                 </Button>
               </div>
             </div>
-            <div className="flex gap-1">
-              <div className="flex flex-col gap-1">
-                <Button
-                  onClick={() => transposeSequence(1)}
-                  disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={t('transposeUp')}
-                >
-                  <ArrowUp className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => transposeSequence(-1)}
-                  disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={t('transposeDown')}
-                >
-                  <ArrowDown className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => multiplyDuration(0.5, 1)}
-                  disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title="Уменьшить длительность x0.5"
-                >
-                  <ArrowLeft className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => multiplyDuration(2, 1)}
-                  disabled={!analysisResult.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title="Увеличить длительность x2"
-                >
-                  <ArrowRight className="w-3 h-3" />
-                </Button>
+          </div>
+
+          {/* Рендерим все последовательности */}
+          {sequences.map((seq, index) => {
+            const analysisResult = analysisResults[index];
+            
+            return (
+              <div key={index} className="space-y-2 border border-border rounded-lg p-3">
+                <div className="space-y-2">
+                  <label className="text-xs md:text-sm font-medium">
+                    Последовательность {index + 1}
+                  </label>
+                  <div className="flex gap-1">
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        onClick={() => transposeSequence(index, 1)}
+                        disabled={!analysisResult?.hasValidSequence}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title={t('transposeUp')}
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        onClick={() => transposeSequence(index, -1)}
+                        disabled={!analysisResult?.hasValidSequence}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title={t('transposeDown')}
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        onClick={() => multiplyDuration(0.5, index)}
+                        disabled={!analysisResult?.hasValidSequence}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title="Уменьшить длительность x0.5"
+                      >
+                        <ArrowLeft className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        onClick={() => multiplyDuration(2, index)}
+                        disabled={!analysisResult?.hasValidSequence}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title="Увеличить длительность x2"
+                      >
+                        <ArrowRight className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={seq.sequence}
+                      onChange={(e) => updateSequence(index, 'sequence', e.target.value)}
+                      placeholder={`Последовательность ${index + 1}`}
+                      className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        onClick={() => handleMute(index)}
+                        className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${seq.isMuted ? 'bg-red-500 text-white' : ''}`}
+                        variant={seq.isMuted ? 'default' : 'outline'}
+                        title={`Mute последовательность ${index + 1}`}
+                      >
+                        M
+                      </Button>
+                      <Button
+                        onClick={() => handleSolo(index)}
+                        className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${seq.isSolo ? 'bg-yellow-500 text-white' : ''}`}
+                        variant={seq.isSolo ? 'default' : 'outline'}
+                        title={`Solo последовательность ${index + 1}`}
+                      >
+                        S
+                      </Button>
+                      <Button
+                        onClick={() => handleVolumeChange(index, 0.1)}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title={`Увеличить громкость (${Math.round(seq.volume * 100)}%)`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        onClick={() => handleVolumeChange(index, -0.1)}
+                        className="w-6 h-6 md:w-7 md:h-7 p-0"
+                        variant="outline"
+                        title={`Уменьшить громкость (${Math.round(seq.volume * 100)}%)`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs md:text-sm font-medium">
+                    Инструмент {index + 1}
+                  </label>
+                  <Select 
+                    value={seq.selectedInstrument} 
+                    onValueChange={(value) => updateSequence(index, 'selectedInstrument', value)}
+                  >
+                    <SelectTrigger className="w-full h-9 md:h-10 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {instruments.map((instrument) => (
+                        <SelectItem key={instrument.value} value={instrument.value}>
+                          {instrument.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="p-2 md:p-3 bg-muted rounded-md">
+                  <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} {index + 1}:</p>
+                  <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
+                    {renderSequenceWithHighlights(seq.parsedNotes, seq.sequence, seq.currentNoteIndex)}
+                  </div>
+                </div>
+
+                {analysisResult?.hasErrors && (
+                  <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} {index + 1}:</p>
+                    <ul className="text-xs text-red-700 mt-1 list-disc list-inside">
+                      {seq.parsedNotes
+                        .filter(note => note.isError)
+                        .map((note, noteIndex) => (
+                          <li key={noteIndex}>{note.errorMessage}</li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <Textarea
-                id="sequence"
-                value={sequence}
-                onChange={(e) => setSequence(e.target.value)}
-                placeholder="Последовательность 1"
-                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-              />
-              <div className="flex flex-col gap-1">
-                <Button
-                  onClick={() => handleMute(1)}
-                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isMuted1 ? 'bg-red-500 text-white' : ''}`}
-                  variant={isMuted1 ? 'default' : 'outline'}
-                  title="Mute последовательность 1"
-                >
-                  M
-                </Button>
-                <Button
-                  onClick={() => handleSolo(1)}
-                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isSolo1 ? 'bg-yellow-500 text-white' : ''}`}
-                  variant={isSolo1 ? 'default' : 'outline'}
-                  title="Solo последовательность 1"
-                >
-                  S
-                </Button>
-                <Button
-                  onClick={() => handleVolumeChange(1, 0.1)}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={`Увеличить громкость (${Math.round(volume1 * 100)}%)`}
-                >
-                  <Plus className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => handleVolumeChange(1, -0.1)}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={`Уменьшить громкость (${Math.round(volume1 * 100)}%)`}
-                >
-                  <Minus className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          </div>
+            );
+          })}
 
-          <div className="space-y-2">
-            <label className="text-xs md:text-sm font-medium">
-              Инструмент 1
-            </label>
-            <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
-              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {instruments.map((instrument) => (
-                  <SelectItem key={instrument.value} value={instrument.value}>
-                    {instrument.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="p-2 md:p-3 bg-muted rounded-md">
-            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 1:</p>
-            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
-              {renderSequenceWithHighlights(parsedNotes, sequence, currentNoteIndex)}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="sequence2" className="text-xs md:text-sm font-medium">
-                Последовательность 2
-              </label>
-            </div>
-            <div className="flex gap-1">
-              <div className="flex flex-col gap-1">
-                <Button
-                  onClick={() => transposeSequence2(1)}
-                  disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={t('transposeUp')}
-                >
-                  <ArrowUp className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => transposeSequence2(-1)}
-                  disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={t('transposeDown')}
-                >
-                  <ArrowDown className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => multiplyDuration(0.5, 2)}
-                  disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title="Уменьшить длительность x0.5"
-                >
-                  <ArrowLeft className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => multiplyDuration(2, 2)}
-                  disabled={!analysisResult2.hasValidSequence}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title="Увеличить длительность x2"
-                >
-                  <ArrowRight className="w-3 h-3" />
-                </Button>
-              </div>
-              <Textarea
-                id="sequence2"
-                value={sequence2}
-                onChange={(e) => setSequence2(e.target.value)}
-                placeholder="Последовательность 2"
-                className="min-h-20 md:min-h-24 font-mono flex-1 text-xs md:text-sm"
-              />
-              <div className="flex flex-col gap-1">
-                <Button
-                  onClick={() => handleMute(2)}
-                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isMuted2 ? 'bg-red-500 text-white' : ''}`}
-                  variant={isMuted2 ? 'default' : 'outline'}
-                  title="Mute последовательность 2"
-                >
-                  M
-                </Button>
-                <Button
-                  onClick={() => handleSolo(2)}
-                  className={`w-6 h-6 md:w-7 md:h-7 p-0 text-xs ${isSolo2 ? 'bg-yellow-500 text-white' : ''}`}
-                  variant={isSolo2 ? 'default' : 'outline'}
-                  title="Solo последовательность 2"
-                >
-                  S
-                </Button>
-                <Button
-                  onClick={() => handleVolumeChange(2, 0.1)}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={`Увеличить громкость (${Math.round(volume2 * 100)}%)`}
-                >
-                  <Plus className="w-3 h-3" />
-                </Button>
-                <Button
-                  onClick={() => handleVolumeChange(2, -0.1)}
-                  className="w-6 h-6 md:w-7 md:h-7 p-0"
-                  variant="outline"
-                  title={`Уменьшить громкость (${Math.round(volume2 * 100)}%)`}
-                >
-                  <Minus className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs md:text-sm font-medium">
-              Инструмент 2
-            </label>
-            <Select value={selectedInstrument2} onValueChange={setSelectedInstrument2}>
-              <SelectTrigger className="w-full h-9 md:h-10 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {instruments.map((instrument) => (
-                  <SelectItem key={instrument.value} value={instrument.value}>
-                    {instrument.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="p-2 md:p-3 bg-muted rounded-md">
-            <p className="text-xs md:text-sm font-medium mb-2">{t('preview')} 2:</p>
-            <div className="font-mono text-xs md:text-sm whitespace-nowrap overflow-x-auto max-w-full break-all">
-              {renderSequenceWithHighlights(parsedNotes2, sequence2, currentNoteIndex2)}
-            </div>
+          {/* Кнопки добавления/удаления последовательностей */}
+          <div className="flex gap-2 justify-center">
+            <Button
+              onClick={addSequence}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Добавить инструмент
+            </Button>
+            <Button
+              onClick={removeSequence}
+              variant="outline"
+              size="sm"
+              disabled={sequences.length <= 1}
+              className="flex items-center gap-2"
+            >
+              <Minus className="w-4 h-4" />
+              Удалить последний инструмент
+            </Button>
           </div>
 
           <div className="space-y-2">
@@ -1014,32 +894,6 @@ const MidiSequencer = React.forwardRef<{
               </DialogContent>
             </Dialog>
           </div>
-
-          {analysisResult.hasErrors && (
-            <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 1:</p>
-              <ul className="text-xs text-red-700 mt-1 list-disc list-inside">
-                {parsedNotes
-                  .filter(note => note.isError)
-                  .map((note, index) => (
-                    <li key={index}>{note.errorMessage}</li>
-                  ))}
-              </ul>
-            </div>
-          )}
-
-          {analysisResult2.hasErrors && (
-            <div className="p-2 md:p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-xs md:text-sm text-red-800 font-medium">{t('errorsFound')} 2:</p>
-              <ul className="text-xs text-red-700 mt-1 list-disc list-inside">
-                {parsedNotes2
-                  .filter(note => note.isError)
-                  .map((note, index) => (
-                    <li key={index}>{note.errorMessage}</li>
-                  ))}
-              </ul>
-            </div>
-          )}
         </CardContent>
       </Card>
       
