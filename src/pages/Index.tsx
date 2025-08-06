@@ -430,10 +430,11 @@ const Index = () => {
     value={tabInput}
     onChange={handleTextareaChange}
     placeholder="Пример: C4D#5(500)PG3(2000)"
-    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+    className="w-full border-2 border-[#e2e8f0] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#0f172a] min-h-[100px] resize-none"
     style={{ 
-      minHeight: '80px', 
+      minHeight: '100px', 
       maxHeight: '300px', 
+      fontSize: '13px',
       paddingRight: '25px' 
     }}
   />
@@ -471,7 +472,7 @@ const Index = () => {
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={handleTabConvert}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10"
+                    className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
                     title="Конвертировать"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
@@ -488,7 +489,11 @@ const Index = () => {
                 <select
                   value={instrument}
                   onChange={(e) => setInstrument(e.target.value)}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border-2 border-[#e2e8f0] rounded px-3 py-2 w-full focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
+                  style={{
+                    backgroundColor: 'white',
+                    color: '#334155',
+                  }}
                 >
                   {availableInstruments.map(instr => (
                     <option key={instr} value={instr}>
@@ -509,7 +514,14 @@ const Index = () => {
                     max="200"
                     value={imageSize}
                     onChange={(e) => setImageSize(parseInt(e.target.value))}
-                    className="relative flex w-full touch-none select-none items-center"
+                    className="w-full accent-[#0f172a] custom-slider"
+                    style={{
+                      height: '8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#e2e8f0',
+                      outline: 'none',
+                      WebkitAppearance: 'none',
+                    }}
                   />
                 </div>
               </div>
@@ -535,7 +547,7 @@ const Index = () => {
                     <button
                       onClick={refreshImages}
                       disabled={isLoading || isTakingScreenshot}
-                      className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 ${
+                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
                         isLoading || isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Обновить изображения"
@@ -548,14 +560,14 @@ const Index = () => {
                     <button
                       onClick={handlePlayWithDelay}
                       disabled={isTakingScreenshot || isLoading}
-                      className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 ${
+                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
                         isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       } ${
                         isPlayButtonWaiting 
-                          ? "animate-pulse bg-blue-100 border-blue-300 hover:bg-blue-100" 
+                          ? "animate-pulse bg-blue-100 border-blue-300" 
                           : isPlayButtonActive 
-                            ? "bg-green-100 border-green-300 hover:bg-green-100" 
-                            : ""
+                            ? "bg-green-100 border-green-300" 
+                            : "hover:bg-[#f1f5f9]"
                       }`}
                       title={
                         isPlayButtonWaiting 
@@ -579,7 +591,7 @@ const Index = () => {
                     <button
                       onClick={takeScreenshot}
                       disabled={isTakingScreenshot || isLoading}
-                      className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 ${
+                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
                         isTakingScreenshot || isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Скриншот"
@@ -681,6 +693,24 @@ const Index = () => {
         .resize-handle:hover {
     opacity: 1;
   }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 20px;
+          height: 20px;
+          background: white;
+          border: 2px solid #cbd5e1;
+          border-radius: 50%;
+          cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+          width: 20px;
+          height: 20px;
+          background: white;
+          border: 2px solid #cbd5e1;
+          border-radius: 50%;
+          cursor: pointer;
+        }
       `}</style>
     </div>
   );
