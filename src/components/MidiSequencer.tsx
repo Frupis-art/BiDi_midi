@@ -481,8 +481,8 @@ const MidiSequencer = React.forwardRef<{
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.xml') && !file.name.toLowerCase().endsWith('.musicxml')) {
-      toast.error('Пожалуйста, выберите XML файл');
+    if (!file.name.toLowerCase().endsWith('.mxl') && !file.name.toLowerCase().endsWith('.musicxml')) {
+      toast.error('Пожалуйста, выберите MXL файл');
       return;
     }
 
@@ -521,10 +521,10 @@ const MidiSequencer = React.forwardRef<{
       setSequences(clearedSequences);
       setDeletedSequences([]); // Очищаем историю удаленных последовательностей
       
-      toast.success(`XML импортирован (${importedSequences.length} ${importedSequences.length === 1 ? 'партия' : 'партий'})`);
+      toast.success(`MXL импортирован (${importedSequences.length} ${importedSequences.length === 1 ? 'партия' : 'партий'})`);
     } catch (error) {
-      console.error('XML Import error:', error);
-      toast.error('Ошибка импорта XML: ' + (error as Error).message);
+      console.error('MXL Import error:', error);
+      toast.error('Ошибка импорта MXL: ' + (error as Error).message);
     }
 
     if (xmlFileInputRef.current) {
@@ -679,7 +679,7 @@ const MidiSequencer = React.forwardRef<{
                 <input
                   ref={xmlFileInputRef}
                   type="file"
-                  accept=".xml,.musicxml"
+                  accept=".mxl,.musicxml"
                   onChange={handleXmlImport}
                   className="hidden"
                 />
@@ -712,7 +712,7 @@ const MidiSequencer = React.forwardRef<{
                   className="text-xs px-2 py-1 h-7 md:h-8"
                 >
                   <FileText className="w-3 h-3 mr-1" />
-                  <span className="hidden md:inline">Импорт XML</span>
+                  <span className="hidden md:inline">Импорт MXL</span>
                   <span className="md:hidden">XML</span>
                 </Button>
               </div>

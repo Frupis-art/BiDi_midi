@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
+import JSZip from 'jszip';
 
 interface ParsedNote {
   note?: string;
@@ -551,16 +552,49 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
   });
 };
 
-// Функция импорта XML
+// Функция импорта XML/MXL
 export const importXml = async (file: File): Promise<{ sequences: string[] }> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      try {
-        const xmlContent = event.target?.result as string;
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+  return new Promise(async (resolve, reject) => {
+    try {
+      let xmlContent: string;
+      
+      // Check if it's an MXL file (compressed MusicXML)
+      if (file.name.toLowerCase().endsWith('.mxl')) {
+        const zip = new JSZip();
+        const zipContents = await zip.loadAsync(file);
+        
+        // Look for the main MusicXML file in the archive
+        let musicXmlFile = zipContents.file('score.xml') || 
+                          zipContents.file('musicxml.xml') ||
+                          Object.values(zipContents.files).find(f => f.name.endsWith('.xml') && !f.dir);
+        
+        if (!musicXmlFile) {
+          throw new Error('No MusicXML file found in MXL archive');
+        }
+        
+        xmlContent = await musicXmlFile.async('text');
+      } else {
+        const reader = new FileReader();
+        
+        reader.onload = (event) => {
+          xmlContent = event.target?.result as string;
+          processXmlContent();
+        };
+        
+        reader.onerror = () => {
+          reject(new Error('Ошибка чтения файла'));
+        };
+        
+        reader.readAsText(file);
+        return;
+      }
+      
+      processXmlContent();
+      
+      function processXmlContent() {
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
         
         // Проверяем на ошибки парсинга
         const parseError = xmlDoc.querySelector('parsererror');
@@ -640,15 +674,12 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
         }
         
         resolve({ sequences });
-      } catch (error) {
-        reject(new Error('Ошибка при чтении XML файла: ' + error));
+        } catch (error) {
+          reject(new Error('Ошибка при чтении XML файла: ' + error));
+        }
       }
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Ошибка при чтении файла'));
-    };
-    
-    reader.readAsText(file);
+    } catch (error) {
+      reject(new Error('Ошибка обработки MXL файла: ' + error));
+    }
   });
 };
