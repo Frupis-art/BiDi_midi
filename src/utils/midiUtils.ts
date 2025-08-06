@@ -502,7 +502,7 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
 };
 
 // Обновленная функция импорта с поддержкой разделения треков
-export const importMidi = async (file: File): Promise<{ sequence1: string, sequence2: string }> => {
+export const importMidi = async (file: File): Promise<{ sequences: string[] }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -511,8 +511,7 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
         const arrayBuffer = event.target?.result as ArrayBuffer;
         const midi = new Midi(arrayBuffer);
         
-        let sequence1 = '';
-        let sequence2 = '';
+        const sequences: string[] = [];
         
         // Ищем треки с нотами
         const tracksWithNotes = midi.tracks.filter(t => t.notes.length > 0);
@@ -521,9 +520,10 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Первый трек идет в первую последовательность
-        if (tracksWithNotes[0]) {
-          tracksWithNotes[0].notes.forEach((note) => {
+        // Каждый трек в отдельную последовательность
+        tracksWithNotes.forEach((track) => {
+          let sequence = '';
+          track.notes.forEach((note) => {
             const noteName = note.name.replace(/(\d)/, '');
             const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
             const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
@@ -532,26 +532,12 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
-            sequence1 += noteText;
+            sequence += noteText;
           });
-        }
+          if (sequence) sequences.push(sequence);
+        });
         
-        // Второй трек (если есть) идет во вторую последовательность
-        if (tracksWithNotes[1]) {
-          tracksWithNotes[1].notes.forEach((note) => {
-            const noteName = note.name.replace(/(\d)/, '');
-            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
-            
-            let noteText = noteName;
-            if (octave !== 4) noteText += octave;
-            if (duration !== 1000) noteText += `(${duration})`;
-            
-            sequence2 += noteText;
-          });
-        }
-        
-        resolve({ sequence1, sequence2 });
+        resolve({ sequences });
       } catch (error) {
         reject(new Error('Ошибка при чтении MIDI файла: ' + error));
       }
@@ -562,5 +548,107 @@ export const importMidi = async (file: File): Promise<{ sequence1: string, seque
     };
     
     reader.readAsArrayBuffer(file);
+  });
+};
+
+// Функция импорта XML
+export const importXml = async (file: File): Promise<{ sequences: string[] }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        const xmlContent = event.target?.result as string;
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+        
+        // Проверяем на ошибки парсинга
+        const parseError = xmlDoc.querySelector('parsererror');
+        if (parseError) {
+          throw new Error('Некорректный XML файл');
+        }
+        
+        const sequences: string[] = [];
+        
+        // Ищем все партии (parts)
+        const parts = xmlDoc.querySelectorAll('part');
+        
+        if (parts.length === 0) {
+          throw new Error('XML файл не содержит музыкальных партий');
+        }
+        
+        parts.forEach((part) => {
+          let sequence = '';
+          
+          // Ищем все ноты в партии
+          const notes = part.querySelectorAll('note');
+          
+          notes.forEach((noteElement) => {
+            const rest = noteElement.querySelector('rest');
+            
+            if (rest) {
+              // Пауза
+              const durationElement = noteElement.querySelector('duration');
+              if (durationElement) {
+                const duration = parseInt(durationElement.textContent || '1') * 250; // Приблизительное преобразование
+                if (duration !== 1000) {
+                  sequence += `P(${duration})`;
+                } else {
+                  sequence += 'P';
+                }
+              } else {
+                sequence += 'P';
+              }
+            } else {
+              // Обычная нота
+              const pitch = noteElement.querySelector('pitch');
+              if (pitch) {
+                const step = pitch.querySelector('step')?.textContent || 'C';
+                const octave = parseInt(pitch.querySelector('octave')?.textContent || '4');
+                const alter = pitch.querySelector('alter')?.textContent;
+                
+                let noteName = step;
+                
+                // Обработка альтерации (диезы/бемоли)
+                if (alter) {
+                  const alterValue = parseInt(alter);
+                  if (alterValue === 1) {
+                    noteName += '#';
+                  } else if (alterValue === -1) {
+                    noteName += 'b';
+                  }
+                }
+                
+                // Длительность
+                const durationElement = noteElement.querySelector('duration');
+                const duration = durationElement ? parseInt(durationElement.textContent || '1') * 250 : 1000;
+                
+                let noteText = noteName;
+                if (octave !== 4) noteText += octave;
+                if (duration !== 1000) noteText += `(${duration})`;
+                
+                sequence += noteText;
+              }
+            }
+          });
+          
+          if (sequence) sequences.push(sequence);
+        });
+        
+        if (sequences.length === 0) {
+          throw new Error('XML файл не содержит нот');
+        }
+        
+        resolve({ sequences });
+      } catch (error) {
+        reject(new Error('Ошибка при чтении XML файла: ' + error));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Ошибка при чтении файла'));
+    };
+    
+    reader.readAsText(file);
   });
 };
