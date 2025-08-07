@@ -431,6 +431,9 @@ const MidiSequencer = React.forwardRef<{
       return;
     }
 
+    // Останавливаем воспроизведение при импорте
+    stopPlayback();
+
     try {
       const { sequences: importedSequences } = await importMidi(file);
       
@@ -485,6 +488,9 @@ const MidiSequencer = React.forwardRef<{
       toast.error('Пожалуйста, выберите MXL файл');
       return;
     }
+
+    // Останавливаем воспроизведение при импорте
+    stopPlayback();
 
     try {
       const { sequences: importedSequences } = await importXml(file);

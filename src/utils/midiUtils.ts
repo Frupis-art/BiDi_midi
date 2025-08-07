@@ -502,6 +502,19 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 };
 
+// Функция конвертации бемолей в диезы
+const convertFlatToSharp = (noteName: string): string => {
+  const flatToSharpMap: { [key: string]: string } = {
+    'Bb': 'A#',
+    'Db': 'C#',
+    'Eb': 'D#',
+    'Gb': 'F#',
+    'Ab': 'G#'
+  };
+  
+  return flatToSharpMap[noteName] || noteName;
+};
+
 // Обновленная функция импорта с поддержкой разделения треков
 export const importMidi = async (file: File): Promise<{ sequences: string[] }> => {
   return new Promise((resolve, reject) => {
@@ -525,11 +538,18 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
         tracksWithNotes.forEach((track) => {
           let sequence = '';
           track.notes.forEach((note) => {
-            const noteName = note.name.replace(/(\d)/, '');
-            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
             const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
             
-            let noteText = noteName;
+            // Фильтруем ноты с нулевой длительностью
+            if (duration <= 0) return;
+            
+            const noteName = note.name.replace(/(\d)/, '');
+            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
+            
+            // Конвертируем бемоли в диезы
+            const convertedNoteName = convertFlatToSharp(noteName);
+            
+            let noteText = convertedNoteName;
             if (octave !== 4) noteText += octave;
             if (duration !== 1000) noteText += `(${duration})`;
             
@@ -641,6 +661,13 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
                 const octave = parseInt(pitch.querySelector('octave')?.textContent || '4');
                 const alter = pitch.querySelector('alter')?.textContent;
                 
+                // Длительность
+                const durationElement = noteElement.querySelector('duration');
+                const duration = durationElement ? parseInt(durationElement.textContent || '1') * 250 : 1000;
+                
+                // Фильтруем ноты с нулевой длительностью
+                if (duration <= 0) return;
+                
                 let noteName = step;
                 
                 // Обработка альтерации (диезы/бемоли)
@@ -649,15 +676,15 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
                   if (alterValue === 1) {
                     noteName += '#';
                   } else if (alterValue === -1) {
+                    // Конвертируем бемоль в диез предыдущей ноты
                     noteName += 'b';
                   }
                 }
                 
-                // Длительность
-                const durationElement = noteElement.querySelector('duration');
-                const duration = durationElement ? parseInt(durationElement.textContent || '1') * 250 : 1000;
+                // Конвертируем бемоли в диезы
+                const convertedNoteName = convertFlatToSharp(noteName);
                 
-                let noteText = noteName;
+                let noteText = convertedNoteName;
                 if (octave !== 4) noteText += octave;
                 if (duration !== 1000) noteText += `(${duration})`;
                 
