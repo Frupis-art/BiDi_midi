@@ -442,6 +442,7 @@ const MidiSequencer = React.forwardRef<{
       
       // Создаем новые последовательности для каждого импортированного трека
       importedSequences.forEach((sequence, index) => {
+        console.log(`Создаем последовательность ${index + 1}: ${sequence.substring(0, 50)}...`);
         clearedSequences.push({
           sequence,
           parsedNotes: [],

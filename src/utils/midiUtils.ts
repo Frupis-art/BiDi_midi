@@ -534,10 +534,14 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Каждый трек в отдельную последовательность
-        tracksWithNotes.forEach((track) => {
+        // Каждый трек в отдельную последовательность с последовательной нумерацией
+        tracksWithNotes.forEach((track, trackIndex) => {
           let sequence = '';
-          track.notes.forEach((note) => {
+          
+          // Сортируем ноты по времени начала
+          const sortedNotes = track.notes.sort((a, b) => a.time - b.time);
+          
+          sortedNotes.forEach((note) => {
             const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
             
             // Фильтруем ноты с нулевой длительностью
@@ -555,7 +559,12 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
             
             sequence += noteText;
           });
-          if (sequence) sequences.push(sequence);
+          
+          // Добавляем последовательность только если в ней есть ноты
+          if (sequence.trim()) {
+            sequences.push(sequence);
+            console.log(`MIDI: Трек ${trackIndex + 1} содержит ${sortedNotes.length} нот, последовательность: ${sequence.substring(0, 50)}...`);
+          }
         });
         
         resolve({ sequences });
@@ -631,7 +640,7 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
           throw new Error('XML файл не содержит музыкальных партий');
         }
         
-        parts.forEach((part) => {
+        parts.forEach((part, partIndex) => {
           let sequence = '';
           
           // Ищем все ноты в партии
@@ -693,7 +702,11 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
             }
           });
           
-          if (sequence) sequences.push(sequence);
+          // Добавляем последовательность только если в ней есть ноты
+          if (sequence.trim()) {
+            sequences.push(sequence);
+            console.log(`MXL: Партия ${partIndex + 1} содержит ${notes.length} элементов, последовательность: ${sequence.substring(0, 50)}...`);
+          }
         });
         
         if (sequences.length === 0) {
