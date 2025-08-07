@@ -437,12 +437,17 @@ const MidiSequencer = React.forwardRef<{
     try {
       const { sequences: importedSequences } = await importMidi(file);
       
+      console.log(`📁 MIDI Import: обнаружено ${importedSequences.length} последовательностей`);
+      importedSequences.forEach((seq, i) => {
+        console.log(`📝 Последовательность ${i + 1}: длина ${seq.length} символов, первые 30 символов: "${seq.substring(0, 30)}..."`);
+      });
+      
       // Очищаем все существующие парсеры
       const clearedSequences: SequenceData[] = [];
       
       // Создаем новые последовательности для каждого импортированного трека
       importedSequences.forEach((sequence, index) => {
-        console.log(`Создаем последовательность ${index + 1}: ${sequence.substring(0, 50)}...`);
+        console.log(`🎵 Создаем последовательность ${index + 1}: ${sequence.substring(0, 50)}...`);
         clearedSequences.push({
           sequence,
           parsedNotes: [],
@@ -467,6 +472,7 @@ const MidiSequencer = React.forwardRef<{
         });
       }
       
+      console.log(`🔄 Устанавливаем ${clearedSequences.length} последовательностей в состояние`);
       setSequences(clearedSequences);
       setDeletedSequences([]); // Очищаем историю удаленных последовательностей
       
