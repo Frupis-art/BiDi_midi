@@ -875,9 +875,9 @@ const MidiSequencer = React.forwardRef<{
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
+             title="Добавить инструмент"
             >
               <Plus className="w-4 h-4" />
-              Добавить инструмент
             </Button>
             <Button
               onClick={removeSequence}
@@ -885,9 +885,9 @@ const MidiSequencer = React.forwardRef<{
               size="sm"
               disabled={sequences.length <= 1}
               className="flex items-center gap-2"
+             title="Удалить последний инструмент"
             >
               <Minus className="w-4 h-4" />
-              Удалить последний инструмент
             </Button>
           </div>
 
