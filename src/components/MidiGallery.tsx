@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
   const [uploadAuthor, setUploadAuthor] = useState('');
   const [adminSequences, setAdminSequences] = useState<Record<string, string[]>>({});
   const [adminUnlocked, setAdminUnlocked] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState(true);
   const [currentUserId] = useState(() => {
     let userId = localStorage.getItem('midiGalleryUserId');
     if (!userId) {
@@ -298,172 +300,188 @@ const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
 
   return (
     <Card className="mt-4 md:mt-6">
-      <CardHeader className="p-3 md:p-6">
-        <CardTitle className="text-lg md:text-xl">Галерея MIDI</CardTitle>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
-              <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rating">Рейтинг</SelectItem>
-                <SelectItem value="date">Новое</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={toggleSortOrder}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
-            >
-              {sortOrder === 'desc' ? '/\\' : '\\/'}
-            </Button>
-            <Button
-              onClick={handleRefreshGallery}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
-              title="Обновить галерею"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </Button>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader className="p-3 md:p-6">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg md:text-xl">Галерея MIDI</CardTitle>
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="w-8 h-8 md:w-10 md:h-10"
+                aria-label={open ? 'Свернуть галерею' : 'Развернуть галерею'}
+                title={open ? 'Свернуть' : 'Развернуть'}
+              >
+                {open ? '−' : '+'}
+              </Button>
+            </CollapsibleTrigger>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-3 md:p-6 pt-0">
-        {sortedFiles.length === 0 ? (
-          <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
-        ) : (
-          <div className="space-y-2">
-            {sortedFiles.map((file) => (
-              <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
-                {/* Кнопки действий */}
-                <div className="flex gap-1">
-                  <Button
-                    onClick={() => handleLoadFile(file)}
-                    variant="outline"
-                    size="sm"
-                    className="w-6 h-6 md:w-8 md:h-8 p-0"
-                    title="Подгрузить в последовательности"
-                  >
-                    <Upload className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    onClick={() => handleDownloadFile(file)}
-                    variant="outline"
-                    size="sm"
-                    className="w-6 h-6 md:w-8 md:h-8 p-0"
-                    title="Скачать MIDI файл"
-                  >
-                    <Download className="w-3 h-3" />
-                  </Button>
-                  
-                  {/* Админская кнопка удаления */}
-                  {adminUnlocked[file.id] && (
-                    <Button
-                      onClick={() => handleDeleteFile(file.id)}
-                      variant="destructive"
-                      size="sm"
-                      className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
-                      title="🔐 Удалить файл (АДМИН)"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-
-                {/* Название файла */}
-                <div className="flex-1 min-w-0 px-1">
-                  <span className="text-xs md:text-sm font-mono truncate block">
-                    {file.name}_{file.author}_{file.id}
-                  </span>
-                </div>
-
-                {/* Кнопки голосования */}
-                <div className="flex gap-1">
-                  <Button
-                    onClick={() => handleVote(file.id, 'up')}
-                    variant={file.userVotes[currentUserId] === 'up' ? "default" : "outline"}
-                    size="sm"
-                    className="w-6 h-6 md:w-8 md:h-8 p-0"
-                  >
-                    <ArrowUp className="w-3 h-3 text-green-600" />
-                  </Button>
-                  <Button
-                    onClick={() => handleVote(file.id, 'down')}
-                    variant={file.userVotes[currentUserId] === 'down' ? "destructive" : "outline"}
-                    size="sm"
-                    className="w-6 h-6 md:w-8 md:h-8 p-0"
-                  >
-                    <ArrowDown className="w-3 h-3 text-red-600" />
-                  </Button>
-                </div>
-
-                {/* Рейтинг */}
-                <div className="min-w-[2rem] md:min-w-[3rem] text-center">
-                  <span className={`text-xs md:text-sm font-semibold ${
-                    file.rating < 0 ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {file.rating}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Диалог загрузки в галерею */}
-        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-          <DialogContent className="w-[95vw] max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">Добавить в галерею</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="upload-name" className="text-sm">Введите название (3-8 символов)</Label>
-                <Input
-                  id="upload-name"
-                  value={uploadName}
-                  onChange={(e) => setUploadName(e.target.value)}
-                  placeholder="Название произведения"
-                  maxLength={8}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div>
-                <Label htmlFor="upload-author" className="text-sm">Введите автора (3-8 символов)</Label>
-                <Input
-                  id="upload-author"
-                  value={uploadAuthor}
-                  onChange={(e) => setUploadAuthor(e.target.value)}
-                  placeholder="Автор произведения"
-                  maxLength={8}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => setShowUploadDialog(false)}
-                  variant="outline"
-                  className="flex-1 h-9 text-sm"
-                >
-                  Отмена
-                </Button>
-                <Button
-                  onClick={() => {
-                    // Этот обработчик будет переопределен в родительском компоненте
-                  }}
-                  className="flex-1 h-9 text-sm"
-                  disabled={!uploadName.trim() || !uploadAuthor.trim()}
-                >
-                  Добавить
-                </Button>
-              </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
+                <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rating">Рейтинг</SelectItem>
+                  <SelectItem value="date">Новое</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={toggleSortOrder}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+              >
+                {sortOrder === 'desc' ? '/\\' : '\\/'}
+              </Button>
+              <Button
+                onClick={handleRefreshGallery}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+                title="Обновить галерею"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
+          </div>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="p-3 md:p-6 pt-0">
+            {sortedFiles.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
+            ) : (
+              <div className="space-y-2">
+                {sortedFiles.map((file) => (
+                  <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
+                    {/* Кнопки действий */}
+                    <div className="flex gap-1">
+                      <Button
+                        onClick={() => handleLoadFile(file)}
+                        variant="outline"
+                        size="sm"
+                        className="w-6 h-6 md:w-8 md:h-8 p-0"
+                        title="Подгрузить в последовательности"
+                      >
+                        <Upload className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        onClick={() => handleDownloadFile(file)}
+                        variant="outline"
+                        size="sm"
+                        className="w-6 h-6 md:w-8 md:h-8 p-0"
+                        title="Скачать MIDI файл"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      {/* Админская кнопка удаления */}
+                      {adminUnlocked[file.id] && (
+                        <Button
+                          onClick={() => handleDeleteFile(file.id)}
+                          variant="destructive"
+                          size="sm"
+                          className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
+                          title="🔐 Удалить файл (АДМИН)"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Название файла */}
+                    <div className="flex-1 min-w-0 px-1">
+                      <span className="text-xs md:text-sm font-mono truncate block">
+                        {file.name}_{file.author}_{file.id}
+                      </span>
+                    </div>
+
+                    {/* Кнопки голосования */}
+                    <div className="flex gap-1">
+                      <Button
+                        onClick={() => handleVote(file.id, 'up')}
+                        variant={file.userVotes[currentUserId] === 'up' ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-6 h-6 md:w-8 md:h-8 p-0"
+                      >
+                        <ArrowUp className="w-3 h-3 text-green-600" />
+                      </Button>
+                      <Button
+                        onClick={() => handleVote(file.id, 'down')}
+                        variant={file.userVotes[currentUserId] === 'down' ? 'destructive' : 'outline'}
+                        size="sm"
+                        className="w-6 h-6 md:w-8 md:h-8 p-0"
+                      >
+                        <ArrowDown className="w-3 h-3 text-red-600" />
+                      </Button>
+                    </div>
+
+                    {/* Рейтинг */}
+                    <div className="min-w-[2rem] md:min-w-[3rem] text-center">
+                      <span className={`text-xs md:text-sm font-semibold ${
+                        file.rating < 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {file.rating}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Диалог загрузки в галерею */}
+            <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+              <DialogContent className="w-[95vw] max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-base md:text-lg">Добавить в галерею</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="upload-name" className="text-sm">Введите название (3-8 символов)</Label>
+                    <Input
+                      id="upload-name"
+                      value={uploadName}
+                      onChange={(e) => setUploadName(e.target.value)}
+                      placeholder="Название произведения"
+                      maxLength={8}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="upload-author" className="text-sm">Введите автора (3-8 символов)</Label>
+                    <Input
+                      id="upload-author"
+                      value={uploadAuthor}
+                      onChange={(e) => setUploadAuthor(e.target.value)}
+                      placeholder="Автор произведения"
+                      maxLength={8}
+                      className="h-9 text см"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setShowUploadDialog(false)}
+                      variant="outline"
+                      className="flex-1 h-9 text-sm"
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // Этот обработчик будет переопределен в родительском компоненте
+                      }}
+                      className="flex-1 h-9 text-sm"
+                      disabled={!uploadName.trim() || !uploadAuthor.trim()}
+                    >
+                      Добавить
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };
