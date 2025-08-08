@@ -527,44 +527,69 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
         
         const sequences: string[] = [];
         
-        // Ищем треки с нотами
-        const tracksWithNotes = midi.tracks.filter(t => t.notes.length > 0);
-        
-        if (tracksWithNotes.length === 0) {
+        // Берём только треки, содержащие ноты
+        const tracks = midi.tracks.filter(t => t.notes.length > 0);
+        if (tracks.length === 0) {
           throw new Error('MIDI файл не содержит нот');
         }
         
-        // Каждый трек в отдельную последовательность с последовательной нумерацией
-        tracksWithNotes.forEach((track, trackIndex) => {
-          let sequence = '';
-          
+        tracks.forEach((track, trackIndex) => {
           // Сортируем ноты по времени начала
-          const sortedNotes = track.notes.sort((a, b) => a.time - b.time);
+          const sortedNotes = [...track.notes].sort((a, b) => a.time - b.time);
           
-          sortedNotes.forEach((note) => {
-            const duration = Math.round(note.duration * 1000); // Конвертируем в миллисекунды
-            
-            // Фильтруем ноты с нулевой длительностью
-            if (duration <= 0) return;
-            
-            const noteName = note.name.replace(/(\d)/, '');
-            const octave = parseInt(note.name.match(/\d/)?.[0] || '4');
-            
-            // Конвертируем бемоли в диезы
-            const convertedNoteName = convertFlatToSharp(noteName);
-            
-            let noteText = convertedNoteName;
-            if (octave !== 4) noteText += octave;
-            if (duration !== 1000) noteText += `(${duration})`;
-            
-            sequence += noteText;
-          });
+          // Жадное разбиение трека на монофонические голоса (минимальное число голосов без перекрытий)
+          type Voice = { notes: any[]; lastEnd: number };
+          const voices: Voice[] = [];
+          const EPS = 1e-6;
           
-          // Добавляем последовательность только если в ней есть ноты
-          if (sequence.trim()) {
-            sequences.push(sequence);
-            console.log(`MIDI: Трек ${trackIndex + 1} содержит ${sortedNotes.length} нот, последовательность: ${sequence.substring(0, 50)}...`);
+          for (const n of sortedNotes) {
+            let placed = false;
+            for (const v of voices) {
+              if (n.time >= v.lastEnd - EPS) {
+                v.notes.push(n);
+                v.lastEnd = Math.max(v.lastEnd, n.time + n.duration);
+                placed = true;
+                break;
+              }
+            }
+            if (!placed) {
+              voices.push({ notes: [n], lastEnd: n.time + n.duration });
+            }
           }
+          
+          // Формируем последовательность для каждого голоса с учётом пауз между событиями
+          voices.forEach((voice, vIndex) => {
+            let seq = '';
+            let currentTimeSec = 0;
+            const voiceNotes = [...voice.notes].sort((a, b) => a.time - b.time);
+            
+            for (const note of voiceNotes) {
+              // Добавляем паузу перед нотой, если есть разрыв
+              const gapSec = note.time - currentTimeSec;
+              if (gapSec > EPS) {
+                const gapMs = Math.max(1, Math.round(gapSec * 1000));
+                seq += gapMs !== 1000 ? `P(${gapMs})` : 'P';
+                currentTimeSec += gapSec;
+              }
+              
+              const durationMs = Math.max(1, Math.round(note.duration * 1000));
+              const nameNoOct = note.name.replace(/\d/g, '');
+              const octave = parseInt((note.name.match(/\d+/)?.[0] || '4'), 10);
+              const convertedName = convertFlatToSharp(nameNoOct);
+              
+              let text = convertedName;
+              if (octave !== 4) text += octave;
+              if (durationMs !== 1000) text += `(${durationMs})`;
+              seq += text;
+              
+              currentTimeSec = Math.max(currentTimeSec, note.time + note.duration);
+            }
+            
+            if (seq.trim()) {
+              sequences.push(seq);
+              console.log(`MIDI: Трек ${trackIndex + 1}, голос ${vIndex + 1} → ${voiceNotes.length} нот, последовательность: ${seq.substring(0, 50)}...`);
+            }
+          });
         });
         
         resolve({ sequences });
@@ -581,39 +606,27 @@ export const importMidi = async (file: File): Promise<{ sequences: string[] }> =
   });
 };
 
-// Функция импорта XML/MXL
+// Функция импорта XML/MXL с разбиением на голоса и учётом <divisions>
 export const importXml = async (file: File): Promise<{ sequences: string[] }> => {
   return new Promise(async (resolve, reject) => {
     try {
       let xmlContent: string;
       
-      // Check if it's an MXL file (compressed MusicXML)
       if (file.name.toLowerCase().endsWith('.mxl')) {
         const zip = new JSZip();
         const zipContents = await zip.loadAsync(file);
-        
-        // Look for the main MusicXML file in the archive
         let musicXmlFile = zipContents.file('score.xml') || 
                           zipContents.file('musicxml.xml') ||
                           Object.values(zipContents.files).find(f => f.name.endsWith('.xml') && !f.dir);
-        
-        if (!musicXmlFile) {
-          throw new Error('No MusicXML file found in MXL archive');
-        }
-        
+        if (!musicXmlFile) throw new Error('No MusicXML file found in MXL archive');
         xmlContent = await musicXmlFile.async('text');
       } else {
         const reader = new FileReader();
-        
         reader.onload = (event) => {
           xmlContent = event.target?.result as string;
           processXmlContent();
         };
-        
-        reader.onerror = () => {
-          reject(new Error('Ошибка чтения файла'));
-        };
-        
+        reader.onerror = () => reject(new Error('Ошибка чтения файла'));
         reader.readAsText(file);
         return;
       }
@@ -624,96 +637,73 @@ export const importXml = async (file: File): Promise<{ sequences: string[] }> =>
         try {
           const parser = new DOMParser();
           const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-        
-        // Проверяем на ошибки парсинга
-        const parseError = xmlDoc.querySelector('parsererror');
-        if (parseError) {
-          throw new Error('Некорректный XML файл');
-        }
-        
-        const sequences: string[] = [];
-        
-        // Ищем все партии (parts)
-        const parts = xmlDoc.querySelectorAll('part');
-        
-        if (parts.length === 0) {
-          throw new Error('XML файл не содержит музыкальных партий');
-        }
-        
-        parts.forEach((part, partIndex) => {
-          let sequence = '';
+          const parseError = xmlDoc.querySelector('parsererror');
+          if (parseError) throw new Error('Некорректный XML файл');
           
-          // Ищем все ноты в партии
-          const notes = part.querySelectorAll('note');
+          const sequences: string[] = [];
+          const parts = xmlDoc.querySelectorAll('part');
+          if (parts.length === 0) throw new Error('XML файл не содержит музыкальных партий');
           
-          notes.forEach((noteElement) => {
-            const rest = noteElement.querySelector('rest');
+          parts.forEach((part, partIndex) => {
+            // Голоса внутри партии: voiceNumber -> sequenceText
+            const voiceSequences = new Map<string, string>();
+            let currentDivisions = 1; // по умолчанию четверть = 1 единица
             
-            if (rest) {
-              // Пауза
-              const durationElement = noteElement.querySelector('duration');
-              if (durationElement) {
-                const duration = parseInt(durationElement.textContent || '1') * 250; // Приблизительное преобразование
-                if (duration !== 1000) {
-                  sequence += `P(${duration})`;
-                } else {
-                  sequence += 'P';
-                }
-              } else {
-                sequence += 'P';
+            const measures = part.querySelectorAll('measure');
+            measures.forEach((measure) => {
+              const divisionsEl = measure.querySelector('attributes > divisions');
+              if (divisionsEl) {
+                const d = parseInt(divisionsEl.textContent || '1', 10);
+                if (d > 0) currentDivisions = d;
               }
-            } else {
-              // Обычная нота
-              const pitch = noteElement.querySelector('pitch');
-              if (pitch) {
-                const step = pitch.querySelector('step')?.textContent || 'C';
-                const octave = parseInt(pitch.querySelector('octave')?.textContent || '4');
-                const alter = pitch.querySelector('alter')?.textContent;
+              
+              const notes = measure.querySelectorAll('note');
+              notes.forEach((noteEl) => {
+                const voice = (noteEl.querySelector('voice')?.textContent || '1').trim();
+                const isRest = !!noteEl.querySelector('rest');
+                const durationDiv = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);
+                const ms = durationDiv > 0 && currentDivisions > 0
+                  ? Math.max(1, Math.round((durationDiv / currentDivisions) * 1000))
+                  : 1000;
                 
-                // Длительность
-                const durationElement = noteElement.querySelector('duration');
-                const duration = durationElement ? parseInt(durationElement.textContent || '1') * 250 : 1000;
-                
-                // Фильтруем ноты с нулевой длительностью
-                if (duration <= 0) return;
-                
-                let noteName = step;
-                
-                // Обработка альтерации (диезы/бемоли)
-                if (alter) {
-                  const alterValue = parseInt(alter);
-                  if (alterValue === 1) {
-                    noteName += '#';
-                  } else if (alterValue === -1) {
-                    // Конвертируем бемоль в диез предыдущей ноты
-                    noteName += 'b';
+                let seq = voiceSequences.get(voice) || '';
+                if (isRest) {
+                  seq += ms !== 1000 ? `P(${ms})` : 'P';
+                } else {
+                  const pitch = noteEl.querySelector('pitch');
+                  if (pitch) {
+                    const step = pitch.querySelector('step')?.textContent || 'C';
+                    const octave = parseInt(pitch.querySelector('octave')?.textContent || '4', 10);
+                    const alterStr = pitch.querySelector('alter')?.textContent;
+                    let noteName = step;
+                    if (alterStr) {
+                      const alter = parseInt(alterStr, 10);
+                      if (alter === 1) noteName += '#';
+                      else if (alter === -1) noteName += 'b';
+                    }
+                    const converted = convertFlatToSharp(noteName);
+                    let text = converted;
+                    if (octave !== 4) text += octave;
+                    if (ms !== 1000) text += `(${ms})`;
+                    seq += text;
                   }
                 }
-                
-                // Конвертируем бемоли в диезы
-                const convertedNoteName = convertFlatToSharp(noteName);
-                
-                let noteText = convertedNoteName;
-                if (octave !== 4) noteText += octave;
-                if (duration !== 1000) noteText += `(${duration})`;
-                
-                sequence += noteText;
-              }
-            }
+                voiceSequences.set(voice, seq);
+              });
+            });
+            
+            // Добавляем все голоса этой партии как отдельные последовательности
+            Array.from(voiceSequences.entries()).sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
+              .forEach(([voiceNo, seq]) => {
+                if (seq.trim()) {
+                  sequences.push(seq);
+                  console.log(`MXL: Партия ${partIndex + 1}, голос ${voiceNo} → последовательность: ${seq.substring(0, 50)}...`);
+                }
+              });
           });
           
-          // Добавляем последовательность только если в ней есть ноты
-          if (sequence.trim()) {
-            sequences.push(sequence);
-            console.log(`MXL: Партия ${partIndex + 1} содержит ${notes.length} элементов, последовательность: ${sequence.substring(0, 50)}...`);
-          }
-        });
-        
-        if (sequences.length === 0) {
-          throw new Error('XML файл не содержит нот');
-        }
-        
-        resolve({ sequences });
+          if (sequences.length === 0) throw new Error('XML файл не содержит нот');
+          resolve({ sequences });
         } catch (error) {
           reject(new Error('Ошибка при чтении XML файла: ' + error));
         }
