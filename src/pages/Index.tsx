@@ -514,13 +514,16 @@ const Index = () => {
                     max="200"
                     value={imageSize}
                     onChange={(e) => setImageSize(parseInt(e.target.value))}
-                    className="w-full accent-[#0f172a] custom-slider"
+                    className="w-full accent-[#0f172a] custom-slider relative"
                     style={{
                       height: '8px',
                       borderRadius: '4px',
                       backgroundColor: '#e2e8f0',
                       outline: 'none',
                       WebkitAppearance: 'none',
+                      zIndex: 5,
+                      marginBottom: '8px',
+                      zIndex: 10,
                     }}
                   />
                 </div>
