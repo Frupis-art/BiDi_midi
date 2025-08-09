@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, Heart, VolumeX, Volume2, Plus, Minus, FileText } from 'lucide-react';
-import MidiGallery from './MidiGallery';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, VolumeX, Volume2, Plus, Minus, FileText, Heart } from 'lucide-react';
+import MidiGallery, { MidiFile } from './MidiGallery';
 import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi, importXml } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -35,7 +35,7 @@ interface SequenceData {
   currentNoteIndex: number;
 }
 
-const MidiSequencer = React.forwardRef<{ 
+const MidiSequencer = forwardRef<{ 
   handlePlay: () => void;
   registerPlaybackEndCallback: (callback: () => void) => void;
 }>((props, ref) => {
@@ -75,6 +75,7 @@ const MidiSequencer = React.forwardRef<{
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xmlFileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
+  const midiGalleryRef = useRef<any>(null); // Ref для управления MidiGallery
 
   const instruments = [
     { value: 'piano', label: 'Фортепиано' },
@@ -566,23 +567,25 @@ const MidiSequencer = React.forwardRef<{
     });
   };
 
-  // Функция добавления в галерею
-  const handleGalleryUpload = () => {
+  // Обработчик сохранения в галерею
+  const handleSaveToGallery = async () => {
     if (!galleryName.trim() || !galleryAuthor.trim()) {
       toast.error('Заполните все поля');
       return;
     }
 
-    if (galleryName.length < 3 || galleryName.length > 12) {
-      toast.error('Название должно быть от 3 до 12 символов');
+    // Увеличили лимит до 20 символов
+    if (galleryName.length < 3 || galleryName.length > 20) {
+      toast.error('Название должно быть от 3 до 20 символов');
       return;
     }
 
-    if (galleryAuthor.length < 3 || galleryAuthor.length > 12) {
-      toast.error('Автор должен быть от 3 до 12 символов');
+    if (galleryAuthor.length < 3 || galleryAuthor.length > 20) {
+      toast.error('Автор должен быть от 3 до 20 символов');
       return;
     }
 
+    // Проверка на допустимые символы
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
       toast.error('Используйте только буквы, цифры, пробелы и дефисы');
@@ -590,46 +593,18 @@ const MidiSequencer = React.forwardRef<{
     }
 
     try {
-      const fileId = Math.random().toString(36).substr(2, 5).toUpperCase();
+      // Получаем последовательности
+      const sequence1 = sequences[0]?.sequence || '';
+      const sequence2 = sequences.length > 1 ? sequences[1]?.sequence : '';
       
-      const newFile = {
-        id: fileId,
-        name: galleryName.trim(),
-        author: galleryAuthor.trim(),
-        sequence1: sequences[0]?.sequence || '',
-        sequence2: sequences[1]?.sequence || '',
-        rating: 0,
-        userVotes: {},
-        createdAt: Date.now()
-      };
-
-      if (typeof(Storage) === "undefined") {
-        toast.error('Хранилище недоступно в вашем браузере');
-        return;
-      }
-
-      const existingFilesStr = localStorage.getItem('midiGalleryFiles');
-      const existingFiles = existingFilesStr ? JSON.parse(existingFilesStr) : [];
-      const updatedFiles = [...existingFiles, newFile];
-      
-      const dataSize = JSON.stringify(updatedFiles).length;
-      if (dataSize > 4 * 1024 * 1024) {
-        toast.error('Галерея переполнена (лимит ~4MB). Удалите старые файлы.');
-        return;
-      }
-      
-      localStorage.setItem('midiGalleryFiles', JSON.stringify(updatedFiles));
+      // Вызываем метод загрузки из галереи
+      await midiGalleryRef.current?.uploadToGallery(sequence1, sequence2, galleryName, galleryAuthor);
       
       setGalleryName('');
       setGalleryAuthor('');
       setShowGalleryDialog(false);
-      
-      const fileName = `${galleryName}_${galleryAuthor}_${fileId}.midi`;
-      toast.success(`Файл ${fileName} добавлен в галерею`);
-      
     } catch (error) {
-      console.error('Ошибка при сохранении в галерею:', error);
-      toast.error('Ошибка при сохранении: ' + (error as Error).message);
+      toast.error('Ошибка загрузки: ' + error.message);
     }
   };
 
@@ -650,7 +625,7 @@ const MidiSequencer = React.forwardRef<{
   }, []);
 
   // Expose handlePlay through ref
-  React.useImperativeHandle(ref, () => ({
+  useImperativeHandle(ref, () => ({
     handlePlay,
     registerPlaybackEndCallback
   }));
@@ -950,6 +925,7 @@ const MidiSequencer = React.forwardRef<{
               </DialogContent>
             </Dialog>
 
+            {/* Кнопка сохранения в галерею */}
             <Dialog open={showGalleryDialog} onOpenChange={setShowGalleryDialog}>
               <DialogTrigger asChild>
                 <Button
@@ -967,24 +943,24 @@ const MidiSequencer = React.forwardRef<{
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="gallery-name" className="text-sm">Введите название (3-12 символов)</Label>
+                    <Label htmlFor="gallery-name" className="text-sm">Введите название (3-20 символов)</Label>
                     <Input
                       id="gallery-name"
                       value={galleryName}
                       onChange={(e) => setGalleryName(e.target.value)}
                       placeholder="Название произведения"
-                      maxLength={12}
+                      maxLength={20}
                       className="h-9 text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-author" className="text-sm">Введите автора (3-12 символов)</Label>
+                    <Label htmlFor="gallery-author" className="text-sm">Введите автора (3-20 символов)</Label>
                     <Input
                       id="gallery-author"
                       value={galleryAuthor}
                       onChange={(e) => setGalleryAuthor(e.target.value)}
                       placeholder="Автор произведения"
-                      maxLength={12}
+                      maxLength={20}
                       className="h-9 text-sm"
                     />
                   </div>
@@ -997,7 +973,7 @@ const MidiSequencer = React.forwardRef<{
                       Отмена
                     </Button>
                     <Button
-                      onClick={handleGalleryUpload}
+                      onClick={handleSaveToGallery}
                       className="flex-1 h-9 text-sm"
                       disabled={!galleryName.trim() || !galleryAuthor.trim()}
                     >
@@ -1011,7 +987,11 @@ const MidiSequencer = React.forwardRef<{
         </CardContent>
       </Card>
       
-      <MidiGallery onLoadFile={handleLoadFromGallery} />
+      {/* Компонент галереи */}
+      <MidiGallery 
+        ref={midiGalleryRef}
+        onLoadFile={handleLoadFromGallery} 
+      />
     </div>
   );
 });

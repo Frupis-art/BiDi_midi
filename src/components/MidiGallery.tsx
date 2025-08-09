@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
+
+// Инициализация Supabase клиента
+const SUPABASE_URL = 'https://kubbdkowuajcsqmsisxu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmJka293dWFqY3NxbXNpc3h1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2ODQ0NTYsImV4cCI6MjA3MDI2MDQ1Nn0.PgPp8xu5Jyo9HfOvqv5ubhvp3scGJqESFwOfI-EJNhs';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export interface MidiFile {
   id: string;
   name: string;
   author: string;
-  sequence1: string;
-  sequence2: string;
+  sequences: [string, string];
   rating: number;
-  userVotes: Record<string, 'up' | 'down'>;
+  userVote?: 'up' | 'down';
   createdAt: number;
 }
 
@@ -24,467 +27,518 @@ interface MidiGalleryProps {
   onLoadFile: (sequence1: string, sequence2: string) => void;
 }
 
-const MidiGallery: React.FC<MidiGalleryProps> = ({ onLoadFile }) => {
-  const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
-  const [sortBy, setSortBy] = useState<'rating' | 'date'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [uploadName, setUploadName] = useState('');
-  const [uploadAuthor, setUploadAuthor] = useState('');
-  const [adminSequences, setAdminSequences] = useState<Record<string, string[]>>({});
-  const [adminUnlocked, setAdminUnlocked] = useState<Record<string, boolean>>({});
-  const [open, setOpen] = useState(true);
-  const [currentUserId] = useState(() => {
-    let userId = localStorage.getItem('midiGalleryUserId');
-    if (!userId) {
-      userId = 'user_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('midiGalleryUserId', userId);
-    }
-    return userId;
-  });
+const MidiGallery = forwardRef<{ 
+  setOpen: (open: boolean) => void;
+  uploadToGallery: (sequence1: string, sequence2: string, name: string, author: string) => Promise<MidiFile>;
+}, MidiGalleryProps>(
+  ({ onLoadFile }, ref) => {
+    const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
+    const [sortBy, setSortBy] = useState<'rating' | 'date'>('date');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [adminSequences, setAdminSequences] = useState<Record<string, string[]>>({});
+    const [adminUnlocked, setAdminUnlocked] = useState<Record<string, boolean>>({});
+    const [open, setOpen] = useState(true);
+    const [isOnline, setIsOnline] = useState(true);
 
-  // Секретная админская комбинация: 1↑, 2↓, 6↑, 4↓
-  const ADMIN_SEQUENCE = ['up', 'down', 'down', 'up', 'up', 'up', 'up', 'up', 'up', 'down', 'down', 'down', 'down'];
+    // Секретная админская комбинация
+    const ADMIN_SEQUENCE = ['up', 'down', 'down', 'up', 'up', 'up', 'up', 'up', 'up', 'down', 'down', 'down', 'down'];
 
-  // Загрузка файлов из localStorage
-  useEffect(() => {
-    const savedFiles = localStorage.getItem('midiGalleryFiles');
-    if (savedFiles) {
-      try {
-        setMidiFiles(JSON.parse(savedFiles));
-      } catch (error) {
-        console.error('Error loading MIDI files:', error);
+    // Инициализация пользователя
+    const [currentUserId] = useState(() => {
+      let userId = localStorage.getItem('midiGalleryUserId');
+      if (!userId) {
+        userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('midiGalleryUserId', userId);
       }
-    }
-  }, []);
+      return userId;
+    });
 
-  // Сохранение файлов в localStorage
-  const saveFiles = (files: MidiFile[]) => {
-    localStorage.setItem('midiGalleryFiles', JSON.stringify(files));
-    setMidiFiles(files);
-  };
-
-  // Генерация уникального ID для файла
-  const generateFileId = () => {
-    return Math.random().toString(36).substr(2, 5).toUpperCase();
-  };
-
-  // Загрузка файла в галерею
-  const handleUploadToGallery = (sequence1: string, sequence2: string) => {
-    if (!uploadName.trim() || !uploadAuthor.trim()) {
-      toast.error('Заполните все поля');
-      return;
-    }
-
-    if (uploadName.length < 3 || uploadName.length > 12) {
-      toast.error('Название должно быть от 3 до 12 символов');
-      return;
-    }
-
-    if (uploadAuthor.length < 3 || uploadAuthor.length > 12) {
-      toast.error('Автор должен быть от 3 до 12 символов');
-      return;
-    }
-
-    // Проверка на допустимые символы (буквы, цифры, пробелы, дефисы)
-    const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
-    if (!validChars.test(uploadName) || !validChars.test(uploadAuthor)) {
-      toast.error('Используйте только буквы, цифры, пробелы и дефисы');
-      return;
-    }
-
-    const fileId = generateFileId();
-    const newFile: MidiFile = {
-      id: fileId,
-      name: uploadName.trim(),
-      author: uploadAuthor.trim(),
-      sequence1,
-      sequence2,
-      rating: 0,
-      userVotes: {},
-      createdAt: Date.now()
+    // Проверка подключения к Supabase
+    const checkSupabaseConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('midi_files')
+          .select('*')
+          .limit(1);
+        
+        setIsOnline(!error);
+        return !error;
+      } catch (err) {
+        setIsOnline(false);
+        return false;
+      }
     };
 
-    const updatedFiles = [...midiFiles, newFile];
-    saveFiles(updatedFiles);
-    
-    setUploadName('');
-    setUploadAuthor('');
-    setShowUploadDialog(false);
-    toast.success(`Файл ${uploadName}_${uploadAuthor}_${fileId}.midi добавлен в галерею`);
-  };
+    // Загрузка файлов из localStorage
+    const loadLocalFiles = () => {
+      const savedFiles = localStorage.getItem('midiGalleryFiles');
+      if (savedFiles) {
+        try {
+          const files: MidiFile[] = JSON.parse(savedFiles);
+          setMidiFiles(files);
+        } catch (error) {
+          console.error('Error loading local files:', error);
+        }
+      }
+    };
 
-  // Обработка админской последовательности
-  const handleAdminSequence = (fileId: string, action: 'up' | 'down') => {
-    const currentSequence = adminSequences[fileId] || [];
-    const newSequence = [...currentSequence, action];
-    
-    // Проверяем, совпадает ли текущая последовательность с началом админской
-    const isValidSoFar = ADMIN_SEQUENCE.slice(0, newSequence.length).every(
-      (expectedAction, index) => expectedAction === newSequence[index]
-    );
-    
-    if (!isValidSoFar) {
-      // Неправильная последовательность - сбрасываем
+    // Сохранение в localStorage
+    const saveFilesToLocal = (files: MidiFile[]) => {
+      localStorage.setItem('midiGalleryFiles', JSON.stringify(files));
+    };
+
+    // Загрузка файлов (Supabase или localStorage)
+    const loadFiles = async () => {
+      const isConnected = await checkSupabaseConnection();
+      
+      if (isConnected) {
+        try {
+          // Загрузка файлов и голосов
+          const { data: filesData, error: filesError } = await supabase
+            .from('midi_files')
+            .select('id, name, author, sequences, rating, created_at');
+          
+          if (filesError) throw filesError;
+
+          const { data: votesData, error: votesError } = await supabase
+            .from('midi_votes')
+            .select('file_id, vote')
+            .eq('user_id', currentUserId);
+          
+          if (votesError) throw votesError;
+
+          const files: MidiFile[] = filesData.map(file => ({
+            id: file.id,
+            name: file.name,
+            author: file.author,
+            sequences: file.sequences,
+            rating: file.rating,
+            createdAt: new Date(file.created_at).getTime(),
+            userVote: votesData.find(v => v.file_id === file.id)?.vote === 1 ? 'up' : 'down'
+          }));
+
+          setMidiFiles(files);
+          saveFilesToLocal(files);
+        } catch (error) {
+          console.error('Supabase load error:', error);
+          loadLocalFiles();
+        }
+      } else {
+        loadLocalFiles();
+      }
+    };
+
+    // Инициализация
+    useEffect(() => {
+      loadFiles();
+    }, []);
+
+    // Загрузка файла в галерею (только текстовые последовательности)
+    const uploadToGallery = async (sequence1: string, sequence2: string, name: string, author: string) => {
+      // Проверки на длину
+      if (name.length < 3 || name.length > 20) {
+        throw new Error('Название должно быть от 3 до 20 символов');
+      }
+      
+      if (author.length < 3 || author.length > 20) {
+        throw new Error('Автор должен быть от 3 до 20 символов');
+      }
+
+      const fileId = uuidv4();
+      const createdAt = new Date().toISOString();
+      
+      try {
+        // Сохраняем только текстовые последовательности
+        const { error: insertError } = await supabase
+          .from('midi_files')
+          .insert({
+            id: fileId,
+            name,
+            author,
+            sequences: [sequence1, sequence2],
+            created_at: createdAt,
+            rating: 0
+          });
+        
+        if (insertError) throw insertError;
+        
+        const newFile = {
+          id: fileId,
+          name,
+          author,
+          sequences: [sequence1, sequence2],
+          rating: 0,
+          createdAt: new Date(createdAt).getTime(),
+        };
+        
+        const updatedFiles = [...midiFiles, newFile];
+        setMidiFiles(updatedFiles);
+        saveFilesToLocal(updatedFiles);
+        
+        toast.success(`Файл добавлен в онлайн-галерею!`);
+        return newFile;
+      } catch (error) {
+        console.error('Upload failed:', error);
+        throw new Error('Ошибка сохранения: ' + error.message);
+      }
+    };
+
+    // Обработка админской последовательности
+    const handleAdminSequence = (fileId: string, action: 'up' | 'down') => {
+      const currentSequence = adminSequences[fileId] || [];
+      const newSequence = [...currentSequence, action];
+      
+      // Проверяем, совпадает ли текущая последовательность с началом админской
+      const isValidSoFar = ADMIN_SEQUENCE.slice(0, newSequence.length).every(
+        (expectedAction, index) => expectedAction === newSequence[index]
+      );
+      
+      if (!isValidSoFar) {
+        // Неправильная последовательность - сбрасываем
+        setAdminSequences(prev => ({
+          ...prev,
+          [fileId]: []
+        }));
+        return;
+      }
+      
+      // Обновляем последовательность
       setAdminSequences(prev => ({
         ...prev,
-        [fileId]: []
-      }));
-      console.log(`[ADMIN] Неправильная последовательность для ${fileId}, сброс`);
-      return;
-    }
-    
-    // Обновляем последовательность
-    setAdminSequences(prev => ({
-      ...prev,
-      [fileId]: newSequence
-    }));
-    
-    console.log(`[ADMIN] Последовательность для ${fileId}: ${newSequence.join(', ')}`);
-    
-    // Проверяем, завершена ли админская последовательность
-    if (newSequence.length === ADMIN_SEQUENCE.length) {
-      console.log(`[ADMIN] Админский доступ разблокирован для файла ${fileId}`);
-      setAdminUnlocked(prev => ({
-        ...prev,
-        [fileId]: true
+        [fileId]: newSequence
       }));
       
-      // Сбрасываем последовательность
-      setAdminSequences(prev => ({
-        ...prev,
-        [fileId]: []
-      }));
-      
-      toast.success('🔐 Админские права активированы', { duration: 2000 });
-      
-      // Автоматически скрываем админский доступ через 10 секунд
-      setTimeout(() => {
+      // Проверяем, завершена ли админская последовательность
+      if (newSequence.length === ADMIN_SEQUENCE.length) {
         setAdminUnlocked(prev => ({
           ...prev,
-          [fileId]: false
+          [fileId]: true
         }));
-      }, 10000);
-    }
-  };
-
-  // Голосование за файл с админской последовательностью
-  const handleVote = (fileId: string, voteType: 'up' | 'down') => {
-    // Сначала обрабатываем админскую последовательность
-    handleAdminSequence(fileId, voteType);
-    
-    const updatedFiles = midiFiles.map(file => {
-      if (file.id === fileId) {
-        const newUserVotes = { ...file.userVotes };
-        const currentVote = newUserVotes[currentUserId];
         
-        // Удаляем старый голос если есть
-        if (currentVote === 'up') {
-          file.rating--;
-        } else if (currentVote === 'down') {
-          file.rating++;
-        }
+        // Сбрасываем последовательность
+        setAdminSequences(prev => ({
+          ...prev,
+          [fileId]: []
+        }));
         
-        // Добавляем новый голос если он отличается от текущего
-        if (currentVote !== voteType) {
-          newUserVotes[currentUserId] = voteType;
-          if (voteType === 'up') {
-            file.rating++;
-          } else {
-            file.rating--;
-          }
-        } else {
-          // Если голос такой же - убираем его
-          delete newUserVotes[currentUserId];
-        }
+        toast.success('🔐 Админские права активированы', { duration: 2000 });
         
-        return {
-          ...file,
-          userVotes: newUserVotes
-        };
+        // Автоматически скрываем админский доступ через 10 секунд
+        setTimeout(() => {
+          setAdminUnlocked(prev => ({
+            ...prev,
+            [fileId]: false
+          }));
+        }, 10000);
       }
-      return file;
-    });
-    
-    saveFiles(updatedFiles);
-  };
+    };
 
-  // Обновление галереи
-  const handleRefreshGallery = () => {
-    const savedFiles = localStorage.getItem('midiGalleryFiles');
-    if (savedFiles) {
+    // Голосование
+    const handleVote = async (fileId: string, voteType: 'up' | 'down') => {
+      // Админская последовательность
+      handleAdminSequence(fileId, voteType);
+      
+      const voteValue = voteType === 'up' ? 1 : -1;
+      const file = midiFiles.find(f => f.id === fileId);
+      
+      if (!file) return;
+      
+      // Оптимистичное обновление
+      const currentVote = file.userVote;
+      let ratingChange = voteValue;
+      
+      if (currentVote === 'up') {
+        ratingChange -= 1;
+      } else if (currentVote === 'down') {
+        ratingChange += 1;
+      }
+      
+      const updatedFiles = midiFiles.map(f => 
+        f.id === fileId ? {
+          ...f,
+          rating: f.rating + ratingChange,
+          userVote: voteType
+        } : f
+      );
+      
+      setMidiFiles(updatedFiles);
+      saveFilesToLocal(updatedFiles);
+      
       try {
-        const files = JSON.parse(savedFiles);
-        setMidiFiles(files);
-        toast.success('Галерея обновлена');
+        if (isOnline) {
+          // UPSERT голоса
+          await supabase.from('midi_votes').upsert({
+            file_id: fileId,
+            user_id: currentUserId,
+            vote: voteValue
+          }, { onConflict: 'file_id,user_id' });
+        }
       } catch (error) {
-        console.error('Error refreshing gallery:', error);
-        toast.error('Ошибка при обновлении галереи');
+        toast.error('Ошибка голосования');
+        setMidiFiles(midiFiles); // Откат изменений
       }
-    } else {
-      setMidiFiles([]);
-      toast.success('Галерея обновлена');
-    }
-  };
+    };
 
-  // Удаление файла (админская функция)
-  const handleDeleteFile = (fileId: string) => {
-    const fileToDelete = midiFiles.find(f => f.id === fileId);
-    if (!fileToDelete) return;
-    
-    const confirmMessage = `Удалить файл "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}" из галереи?`;
-    if (window.confirm(confirmMessage)) {
-      const updatedFiles = midiFiles.filter(file => file.id !== fileId);
-      saveFiles(updatedFiles);
+    // Обновление галереи
+    const handleRefreshGallery = () => {
+      loadFiles();
+      toast.success(isOnline 
+        ? 'Галерея обновлена' 
+        : 'Используется локальная копия');
+    };
+
+    // Удаление файла
+    const handleDeleteFile = async (fileId: string) => {
+      const fileToDelete = midiFiles.find(f => f.id === fileId);
+      if (!fileToDelete) return;
       
-      // Очищаем админское состояние для этого файла
-      setAdminUnlocked(prev => {
-        const newState = { ...prev };
-        delete newState[fileId];
-        return newState;
-      });
+      const confirmMessage = `Удалить файл "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}" из галереи?`;
+      if (!window.confirm(confirmMessage)) return;
       
-      setAdminSequences(prev => {
-        const newState = { ...prev };
-        delete newState[fileId];
-        return newState;
-      });
-      
-      toast.success(`Файл ${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id} удален`);
-    }
-  };
+      try {
+        if (isOnline) {
+          // Удаляем запись из таблицы
+          await supabase.from('midi_files').delete().eq('id', fileId);
+        }
+        
+        // Обновление состояния
+        const updatedFiles = midiFiles.filter(f => f.id !== fileId);
+        setMidiFiles(updatedFiles);
+        saveFilesToLocal(updatedFiles);
+        
+        // Очищаем админское состояние
+        setAdminUnlocked(prev => {
+          const newState = { ...prev };
+          delete newState[fileId];
+          return newState;
+        });
+        
+        setAdminSequences(prev => {
+          const newState = { ...prev };
+          delete newState[fileId];
+          return newState;
+        });
+        
+        toast.success(`Файл удален`);
+      } catch (error) {
+        toast.error('Ошибка удаления: ' + error.message);
+      }
+    };
 
-  // Загрузка файла в последовательности
-  const handleLoadFile = (file: MidiFile) => {
-    const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
-    if (window.confirm(confirmMessage)) {
-      onLoadFile(file.sequence1, file.sequence2);
-      toast.success(`Загружен файл: ${file.name}_${file.author}_${file.id}`);
-    }
-  };
+    // Загрузка файла в последовательности
+    const handleLoadFile = (file: MidiFile) => {
+      const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
+      if (window.confirm(confirmMessage)) {
+        onLoadFile(file.sequences[0], file.sequences[1]);
+        toast.success(`Загружен файл: ${file.name}_${file.author}_${file.id}`);
+      }
+    };
 
-  // Скачивание MIDI файла
-  const handleDownloadFile = async (file: MidiFile) => {
-    try {
-      // Парсим последовательности для экспорта
-      const { parseNoteSequence } = await import('@/utils/midiUtils');
-      const parsedNotes1 = parseNoteSequence(file.sequence1, (key: string) => key);
-      const parsedNotes2 = parseNoteSequence(file.sequence2, (key: string) => key);
-      
-      // Экспортируем как MIDI
-      const { exportMidi } = await import('@/utils/midiUtils');
-      await exportMidi(parsedNotes1, parsedNotes2, 1, { 
-        format: 'midi' as const
-      });
-      
-      toast.success(`Скачивается: ${file.name}_${file.author}_${file.id}.midi`);
-    } catch (error) {
-      console.error('Ошибка при скачивании MIDI:', error);
-      toast.error('Ошибка при экспорте MIDI файла');
-    }
-  };
+    // Скачивание MIDI файла (генерируем на лету)
+    const handleDownloadFile = async (file: MidiFile) => {
+      try {
+        // Генерируем MIDI из текстовых последовательностей
+        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+        const parsedNotes1 = parseNoteSequence(file.sequences[0], (key: string) => key);
+        const parsedNotes2 = parseNoteSequence(file.sequences[1], (key: string) => key);
+        
+        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
+          format: 'midi' as const
+        });
+        
+        // Создаем URL для скачивания
+        const url = URL.createObjectURL(midiBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${file.name}_${file.author}_${file.id}.mid`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Убираем ссылку после скачивания
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        toast.success(`Скачивается: ${file.name}_${file.author}_${file.id}.mid`);
+      } catch (error) {
+        console.error('Ошибка при скачивании MIDI:', error);
+        toast.error('Ошибка при экспорте MIDI файла');
+      }
+    };
 
-  // Сортировка файлов
-  const sortedFiles = [...midiFiles].sort((a, b) => {
-    if (sortBy === 'rating') {
-      return sortOrder === 'desc' ? b.rating - a.rating : a.rating - b.rating;
-    } else {
-      return sortOrder === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt;
-    }
-  });
+    // Сортировка файлов
+    const sortedFiles = [...midiFiles].sort((a, b) => {
+      if (sortBy === 'rating') {
+        return sortOrder === 'desc' ? b.rating - a.rating : a.rating - b.rating;
+      } else {
+        return sortOrder === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt;
+      }
+    });
 
-  // Переключение порядка сортировки
-  const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
-  };
+    // Переключение порядка сортировки
+    const toggleSortOrder = () => {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    };
 
-  return (
-    <Card className="mt-4 md:mt-6">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CardHeader className="p-3 md:p-6">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg md:text-xl">Галерея MIDI</CardTitle>
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="w-8 h-8 md:w-10 md:h-10"
-                aria-label={open ? 'Свернуть галерею' : 'Развернуть галерею'}
-                title={open ? 'Свернуть' : 'Развернуть'}
-              >
-                {open ? '−' : '+'}
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
-                <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="rating">Рейтинг</SelectItem>
-                  <SelectItem value="date">Новое</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={toggleSortOrder}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
-              >
-                {sortOrder === 'desc' ? '/\\' : '\\/'}
-              </Button>
-              <Button
-                onClick={handleRefreshGallery}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
-                title="Обновить галерею"
-              >
-                <RotateCcw className="w-3 h-3" />
-              </Button>
+    // Экспорт методов через ref
+    useImperativeHandle(ref, () => ({
+      setOpen: (open: boolean) => {
+        setOpen(open);
+      },
+      uploadToGallery: uploadToGallery
+    }));
+
+    return (
+      <Card className="mt-4 md:mt-6">
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CardHeader className="p-3 md:p-6">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+                Галерея MIDI
+                {isOnline ? 
+                  <Wifi className="text-green-500" size={18} /> : 
+                  <WifiOff className="text-yellow-500" size={18} />
+                }
+              </CardTitle>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="w-8 h-8 md:w-10 md:h-10"
+                  aria-label={open ? 'Свернуть галерею' : 'Развернуть галерею'}
+                  title={open ? 'Свернуть' : 'Развернуть'}
+                >
+                  {open ? '−' : '+'}
+                </Button>
+              </CollapsibleTrigger>
             </div>
-          </div>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent className="p-3 md:p-6 pt-0">
-            {sortedFiles.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
-            ) : (
-              <div className="space-y-2">
-                {sortedFiles.map((file) => (
-                  <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
-                    {/* Кнопки действий */}
-                    <div className="flex gap-1">
-                      <Button
-                        onClick={() => handleLoadFile(file)}
-                        variant="outline"
-                        size="sm"
-                        className="w-6 h-6 md:w-8 md:h-8 p-0"
-                        title="Подгрузить в последовательности"
-                      >
-                        <Upload className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDownloadFile(file)}
-                        variant="outline"
-                        size="sm"
-                        className="w-6 h-6 md:w-8 md:h-8 p-0"
-                        title="Скачать MIDI файл"
-                      >
-                        <Download className="w-3 h-3" />
-                      </Button>
-                      {/* Админская кнопка удаления */}
-                      {adminUnlocked[file.id] && (
-                        <Button
-                          onClick={() => handleDeleteFile(file.id)}
-                          variant="destructive"
-                          size="sm"
-                          className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
-                          title="🔐 Удалить файл (АДМИН)"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Название файла */}
-                    <div className="flex-1 min-w-0 px-1">
-                      <span className="text-xs md:text-sm font-mono truncate block">
-                        {file.name}_{file.author}_{file.id}
-                      </span>
-                    </div>
-
-                    {/* Кнопки голосования */}
-                    <div className="flex gap-1">
-                      <Button
-                        onClick={() => handleVote(file.id, 'up')}
-                        variant={file.userVotes[currentUserId] === 'up' ? 'default' : 'outline'}
-                        size="sm"
-                        className="w-6 h-6 md:w-8 md:h-8 p-0"
-                      >
-                        <ArrowUp className="w-3 h-3 text-green-600" />
-                      </Button>
-                      <Button
-                        onClick={() => handleVote(file.id, 'down')}
-                        variant={file.userVotes[currentUserId] === 'down' ? 'destructive' : 'outline'}
-                        size="sm"
-                        className="w-6 h-6 md:w-8 md:h-8 p-0"
-                      >
-                        <ArrowDown className="w-3 h-3 text-red-600" />
-                      </Button>
-                    </div>
-
-                    {/* Рейтинг */}
-                    <div className="min-w-[2rem] md:min-w-[3rem] text-center">
-                      <span className={`text-xs md:text-sm font-semibold ${
-                        file.rating < 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {file.rating}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
+                  <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rating">Рейтинг</SelectItem>
+                    <SelectItem value="date">Новое</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={toggleSortOrder}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+                >
+                  {sortOrder === 'desc' ? '/\\' : '\\/'}
+                </Button>
+                <Button
+                  onClick={handleRefreshGallery}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+                  title="Обновить галерею"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </Button>
               </div>
-            )}
-
-            {/* Диалог загрузки в галерею */}
-            <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-              <DialogContent className="w-[95vw] max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-base md:text-lg">Добавить в галерею</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="upload-name" className="text-sm">Введите название (3-8 символов)</Label>
-                    <Input
-                      id="upload-name"
-                      value={uploadName}
-                      onChange={(e) => setUploadName(e.target.value)}
-                      placeholder="Название произведения"
-                      maxLength={8}
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="upload-author" className="text-sm">Введите автора (3-8 символов)</Label>
-                    <Input
-                      id="upload-author"
-                      value={uploadAuthor}
-                      onChange={(e) => setUploadAuthor(e.target.value)}
-                      placeholder="Автор произведения"
-                      maxLength={8}
-                      className="h-9 text см"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => setShowUploadDialog(false)}
-                      variant="outline"
-                      className="flex-1 h-9 text-sm"
-                    >
-                      Отмена
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        // Этот обработчик будет переопределен в родительском компоненте
-                      }}
-                      className="flex-1 h-9 text-sm"
-                      disabled={!uploadName.trim() || !uploadAuthor.trim()}
-                    >
-                      Добавить
-                    </Button>
-                  </div>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="p-3 md:p-6 pt-0">
+              {/* Индикатор режима */}
+              {!isOnline && (
+                <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 rounded-md text-sm">
+                  ⚠️ Используется локальная галерея (Supabase недоступен)
                 </div>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
-  );
-};
+              )}
+              
+              {sortedFiles.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
+              ) : (
+                <div className="space-y-2">
+                  {sortedFiles.map((file) => (
+                    <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
+                      {/* Кнопки действий */}
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => handleLoadFile(file)}
+                          variant="outline"
+                          size="sm"
+                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          title="Подгрузить в последовательности"
+                        >
+                          <Upload className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={() => handleDownloadFile(file)}
+                          variant="outline"
+                          size="sm"
+                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          title="Скачать MIDI файл"
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        {/* Админская кнопка удаления */}
+                        {adminUnlocked[file.id] && (
+                          <Button
+                            onClick={() => handleDeleteFile(file.id)}
+                            variant="destructive"
+                            size="sm"
+                            className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
+                            title="🔐 Удалить файл (АДМИН)"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
 
-export { MidiGallery, type MidiGalleryProps };
+                      {/* Название файла */}
+<div className="flex-1 min-w-0 px-1">
+  <span className="text-xs md:text-sm truncate block" title={`${file.name} - ${file.author} (ID: ${file.id})`}>
+    {file.name} - {file.author}
+  </span>
+</div>
+
+                      {/* Кнопки голосования */}
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => handleVote(file.id, 'up')}
+                          variant={file.userVote === 'up' ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                        >
+                          <ArrowUp className="w-3 h-3 text-green-600" />
+                        </Button>
+                        <Button
+                          onClick={() => handleVote(file.id, 'down')}
+                          variant={file.userVote === 'down' ? 'destructive' : 'outline'}
+                          size="sm"
+                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                        >
+                          <ArrowDown className="w-3 h-3 text-red-600" />
+                        </Button>
+                      </div>
+
+                      {/* Рейтинг */}
+                      <div className="min-w-[2rem] md:min-w-[3rem] text-center">
+                        <span className={`text-xs md:text-sm font-semibold ${
+                          file.rating < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {file.rating}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    );
+  }
+);
+
 export default MidiGallery;
+export { MidiFile };
