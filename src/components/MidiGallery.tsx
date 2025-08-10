@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,6 +52,66 @@ const MidiGallery = forwardRef<{
       }
       return userId;
     });
+
+    // Функция для безопасного имени файла
+    const safeFileName = (str: string) => 
+      str.replace(/[^\wа-яА-Я\s]/gi, '').replace(/\s+/g, '_');
+
+    // Хук для обработки скачивания с защитой от множественных вызовов
+    const useDownloadHandler = () => {
+      const isDownloadingRef = useRef(false);
+      
+      return async (file: MidiFile) => {
+        if (isDownloadingRef.current) return;
+        isDownloadingRef.current = true;
+        
+        try {
+          // Проверка на пустые последовательности
+          if (!file.sequences[0] && !file.sequences[1]) {
+            toast.error('Файл не содержит данных');
+            return;
+          }
+          
+          // Генерируем MIDI из текстовых последовательностей
+          const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+          const parsedNotes1 = file.sequences[0] 
+            ? parseNoteSequence(file.sequences[0], (key: string) => key)
+            : [];
+          const parsedNotes2 = file.sequences[1] 
+            ? parseNoteSequence(file.sequences[1], (key: string) => key)
+            : [];
+          
+          // Получаем Blob с MIDI данными
+          const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
+            format: 'midi' as const
+          });
+          
+          // Создаем URL для скачивания
+          const url = URL.createObjectURL(midiBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${safeFileName(file.name)}_${safeFileName(file.author)}.mid`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          
+          // Убираем ссылку после скачивания
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 100);
+          
+          toast.success(`Скачивается: ${file.name}_${file.author}.mid`);
+        } catch (error) {
+          console.error('Ошибка при скачивании MIDI:', error);
+          toast.error('Ошибка при экспорте MIDI файла');
+        } finally {
+          isDownloadingRef.current = false;
+        }
+      };
+    };
+    
+    const handleDownloadFile = useDownloadHandler();
 
     // Проверка подключения к Supabase
     const checkSupabaseConnection = async () => {
@@ -334,39 +394,6 @@ const MidiGallery = forwardRef<{
       }
     };
 
-    // Скачивание MIDI файла (генерируем на лету)
-    const handleDownloadFile = async (file: MidiFile) => {
-      try {
-        // Генерируем MIDI из текстовых последовательностей
-        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
-        const parsedNotes1 = parseNoteSequence(file.sequences[0], (key: string) => key);
-        const parsedNotes2 = parseNoteSequence(file.sequences[1], (key: string) => key);
-        
-        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
-          format: 'midi' as const
-        });
-        
-        // Создаем URL для скачивания
-        const url = URL.createObjectURL(midiBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${file.name}_${file.author}_${file.id}.mid`;
-        document.body.appendChild(link);
-        link.click();
-        
-        // Убираем ссылку после скачивания
-        setTimeout(() => {
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }, 100);
-        
-        toast.success(`Скачивается: ${file.name}_${file.author}_${file.id}.mid`);
-      } catch (error) {
-        console.error('Ошибка при скачивании MIDI:', error);
-        toast.error('Ошибка при экспорте MIDI файла');
-      }
-    };
-
     // Сортировка файлов
     const sortedFiles = [...midiFiles].sort((a, b) => {
       if (sortBy === 'rating') {
@@ -390,22 +417,22 @@ const MidiGallery = forwardRef<{
     }));
 
     return (
-      <Card className="mt-4 md:mt-6">
+      <Card className="mt-4 text-xs">
         <Collapsible open={open} onOpenChange={setOpen}>
-          <CardHeader className="p-3 md:p-6">
+          <CardHeader className="p-2 md:p-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+              <CardTitle className="text-md md:text-lg flex items-center gap-1">
                 Галерея MIDI
                 {isOnline ? 
-                  <Wifi className="text-green-500" size={18} /> : 
-                  <WifiOff className="text-yellow-500" size={18} />
+                  <Wifi className="text-green-500" size={16} /> : 
+                  <WifiOff className="text-yellow-500" size={16} />
                 }
               </CardTitle>
               <CollapsibleTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="w-8 h-8 md:w-10 md:h-10"
+                  className="w-6 h-6 md:w-7 md:h-7"
                   aria-label={open ? 'Свернуть галерею' : 'Развернуть галерею'}
                   title={open ? 'Свернуть' : 'Развернуть'}
                 >
@@ -416,7 +443,7 @@ const MidiGallery = forwardRef<{
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
-                  <SelectTrigger className="w-24 md:w-32 h-8 md:h-10 text-xs md:text-sm">
+                  <SelectTrigger className="w-20 md:w-24 h-7 md:h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -428,7 +455,7 @@ const MidiGallery = forwardRef<{
                   onClick={toggleSortOrder}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+                  className="flex items-center gap-1 h-7 md:h-8 px-2 text-xs"
                 >
                   {sortOrder === 'desc' ? '/\\' : '\\/'}
                 </Button>
@@ -436,7 +463,7 @@ const MidiGallery = forwardRef<{
                   onClick={handleRefreshGallery}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-1 h-8 md:h-10 px-2 md:px-3 text-xs md:text-sm"
+                  className="flex items-center gap-1 h-7 md:h-8 px-2 text-xs"
                   title="Обновить галерею"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -445,39 +472,41 @@ const MidiGallery = forwardRef<{
             </div>
           </CardHeader>
           <CollapsibleContent>
-            <CardContent className="p-3 md:p-6 pt-0">
+            <CardContent className="p-2 md:p-3 pt-0">
               {/* Индикатор режима */}
               {!isOnline && (
-                <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 rounded-md text-sm">
-                  ⚠️ Используется локальная галерея (Supabase недоступен)
+                <div className="mb-2 p-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+                  ⚠️ Используется локальная галерея
                 </div>
               )}
               
               {sortedFiles.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4 text-sm md:text-base">Галерея пуста</p>
+                <p className="text-muted-foreground text-center py-2 text-xs">
+                  Галерея пуста
+                </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1 max-h-60 overflow-y-auto">
                   {sortedFiles.map((file) => (
-                    <div key={file.id} className="flex items-center gap-1 md:gap-2 p-2 border rounded-md">
+                    <div key={file.id} className="flex items-center gap-1 p-1 border rounded-md">
                       {/* Кнопки действий */}
                       <div className="flex gap-1">
                         <Button
                           onClick={() => handleLoadFile(file)}
                           variant="outline"
                           size="sm"
-                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          className="w-4 h-4 md:w-5 md:h-5 p-0"
                           title="Подгрузить в последовательности"
                         >
-                          <Upload className="w-3 h-3" />
+                          <Upload className="w-2 h-2 md:w-3 md:h-3" />
                         </Button>
                         <Button
                           onClick={() => handleDownloadFile(file)}
                           variant="outline"
                           size="sm"
-                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          className="w-4 h-4 md:w-5 md:h-5 p-0"
                           title="Скачать MIDI файл"
                         >
-                          <Download className="w-3 h-3" />
+                          <Download className="w-2 h-2 md:w-3 md:h-3" />
                         </Button>
                         {/* Админская кнопка удаления */}
                         {adminUnlocked[file.id] && (
@@ -485,46 +514,47 @@ const MidiGallery = forwardRef<{
                             onClick={() => handleDeleteFile(file.id)}
                             variant="destructive"
                             size="sm"
-                            className="w-6 h-6 md:w-8 md:h-8 p-0 animate-pulse"
+                            className="w-4 h-4 md:w-5 md:h-5 p-0"
                             title="🔐 Удалить файл (АДМИН)"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-2 h-2 md:w-3 md:h-3" />
                           </Button>
                         )}
                       </div>
 
                       {/* Название файла */}
-<div className="flex-1 min-w-0 px-1">
-  <span className="text-xs md:text-sm truncate block" title={`${file.name} - ${file.author} (ID: ${file.id})`}>
-    {file.name} - {file.author}
-  </span>
-</div>
+                      <div className="flex-1 min-w-0 px-1">
+                        <span 
+                          className="text-xs truncate block" 
+                          title={`${file.name} - ${file.author} (ID: ${file.id})`}
+                        >
+                          {file.name} - {file.author}
+                        </span>
+                      </div>
 
                       {/* Кнопки голосования */}
-                      <div className="flex gap-1">
+                      <div className="flex gap-0.5">
                         <Button
                           onClick={() => handleVote(file.id, 'up')}
                           variant={file.userVote === 'up' ? 'default' : 'outline'}
                           size="sm"
-                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          className="w-4 h-4 md:w-5 md:h-5 p-0"
                         >
-                          <ArrowUp className="w-3 h-3 text-green-600" />
+                          <ArrowUp className="w-2 h-2 text-green-600" />
                         </Button>
                         <Button
                           onClick={() => handleVote(file.id, 'down')}
                           variant={file.userVote === 'down' ? 'destructive' : 'outline'}
                           size="sm"
-                          className="w-6 h-6 md:w-8 md:h-8 p-0"
+                          className="w-4 h-4 md:w-5 md:h-5 p-0"
                         >
-                          <ArrowDown className="w-3 h-3 text-red-600" />
+                          <ArrowDown className="w-2 h-2 text-red-600" />
                         </Button>
                       </div>
 
                       {/* Рейтинг */}
-                      <div className="min-w-[2rem] md:min-w-[3rem] text-center">
-                        <span className={`text-xs md:text-sm font-semibold ${
-                          file.rating < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
+                      <div className="min-w-[1.5rem] text-center">
+                        <span className={`text-xs font-semibold ${file.rating < 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {file.rating}
                         </span>
                       </div>

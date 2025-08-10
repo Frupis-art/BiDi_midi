@@ -234,7 +234,7 @@ export const exportMidi = async (
   notes2: ParsedNote[], 
   speed: number = 1, 
   options?: { format: 'midi' | 'mp3' }
-) => {
+): Promise<Blob | void> => {
   const midi = new Midi();
   
   // Создаем первый трек для первой последовательности
@@ -283,58 +283,10 @@ export const exportMidi = async (
     await convertToMp3(notes1, notes2, speed);
   } else {
     const midiArray = midi.toArray();
-    const midiBlob = new Blob([midiArray], { type: 'audio/midi' });
-    
-    // Проверяем различные мобильные платформы включая Telegram
-    const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isTelegramWebApp) {
-      // Специальная обработка для Telegram WebApp
-      downloadMidiFile(midiBlob, 'sequence', 'mid');
-    } else if (isMobile && 'share' in navigator) {
-      try {
-        const file = new File([midiBlob], 'sequence.mid', { type: 'audio/midi' });
-        await navigator.share({
-          files: [file],
-          title: 'MIDI Sequence',
-          text: 'Exported MIDI sequence'
-        });
-      } catch (error) {
-        console.error('Share failed:', error);
-        downloadMidiFile(midiBlob, 'sequence', 'mid');
-      }
-    } else {
-      downloadMidiFile(midiBlob, 'sequence', 'mid');
-    }
+    return new Blob([midiArray], { type: 'audio/midi' });
   }
 };
 
-const downloadMidiFile = (blob: Blob, baseName: string, extension: string) => {
-  const url = URL.createObjectURL(blob);
-  
-  // Генерируем уникальное имя файла с правильным форматом
-  const fileName = generateUniqueFileName(baseName, extension);
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  
-  // Для Telegram WebApp добавляем специальные атрибуты
-  const isTelegramWebApp = !!(window as any).Telegram?.WebApp;
-  if (isTelegramWebApp) {
-    link.setAttribute('target', '_blank');
-    link.setAttribute('rel', 'noopener noreferrer');
-  }
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  URL.revokeObjectURL(url);
-};
-
-// Обновленная функция конвертации в MP3 с поддержкой двух последовательностей
 const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: number) => {
   const audioContext = new AudioContext();
   const sampleRate = audioContext.sampleRate;
