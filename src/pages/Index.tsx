@@ -521,9 +521,8 @@ const Index = () => {
                       backgroundColor: '#e2e8f0',
                       outline: 'none',
                       WebkitAppearance: 'none',
-                      zIndex: 5,
-                      marginBottom: '8px',
                       zIndex: 10,
+                      marginBottom: '8px',
                     }}
                   />
                 </div>

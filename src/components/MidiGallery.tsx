@@ -82,12 +82,14 @@ const MidiGallery = forwardRef<{
             : [];
           
           // Получаем Blob с MIDI данными
-          const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
-            format: 'midi' as const
-          });
-          
-          // Создаем URL для скачивания
-          const url = URL.createObjectURL(midiBlob);
+        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
+          format: 'midi' as const
+        });
+        
+        if (!midiBlob) return;
+        
+        // Создаем URL для скачивания
+        const url = URL.createObjectURL(midiBlob);
           const link = document.createElement('a');
           link.href = url;
           link.download = `${safeFileName(file.name)}_${safeFileName(file.author)}.mid`;
@@ -222,11 +224,11 @@ const MidiGallery = forwardRef<{
         
         if (insertError) throw insertError;
         
-        const newFile = {
+        const newFile: MidiFile = {
           id: fileId,
           name,
           author,
-          sequences: [sequence1, sequence2],
+          sequences: [sequence1, sequence2] as [string, string],
           rating: 0,
           createdAt: new Date(createdAt).getTime(),
         };
@@ -571,4 +573,3 @@ const MidiGallery = forwardRef<{
 );
 
 export default MidiGallery;
-export { MidiFile };
