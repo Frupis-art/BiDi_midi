@@ -5,13 +5,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Инициализация Supabase клиента
-const SUPABASE_URL = 'https://kubbdkowuajcsqmsisxu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1YmJka293dWFqY3NxbXNpc3h1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2ODQ0NTYsImV4cCI6MjA3MDI2MDQ1Nn0.PgPp8xu5Jyo9HfOvqv5ubhvp3scGJqESFwOfI-EJNhs';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Импортируем Firebase
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where, 
+  orderBy,
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
 
 export interface MidiFile {
   id: string;
@@ -115,17 +125,15 @@ const MidiGallery = forwardRef<{
     
     const handleDownloadFile = useDownloadHandler();
 
-    // Проверка подключения к Supabase
-    const checkSupabaseConnection = async () => {
+    // Проверка подключения к Firebase
+    const checkFirebaseConnection = async () => {
       try {
-        const { data, error } = await supabase
-          .from('midi_files')
-          .select('*')
-          .limit(1);
-        
-        setIsOnline(!error);
-        return !error;
+        // Простая проверка соединения - попытка получить коллекцию
+        await getDocs(collection(db, 'midi_files'));
+        setIsOnline(true);
+        return true;
       } catch (err) {
+        console.error('Firebase connection error:', err);
         setIsOnline(false);
         return false;
       }
@@ -149,40 +157,51 @@ const MidiGallery = forwardRef<{
       localStorage.setItem('midiGalleryFiles', JSON.stringify(files));
     };
 
-    // Загрузка файлов (Supabase или localStorage)
+    // Загрузка файлов (Firebase или localStorage)
     const loadFiles = async () => {
-      const isConnected = await checkSupabaseConnection();
+      const isConnected = await checkFirebaseConnection();
       
       if (isConnected) {
         try {
-          // Загрузка файлов и голосов
-          const { data: filesData, error: filesError } = await supabase
-            .from('midi_files')
-            .select('id, name, author, sequences, rating, created_at');
+          // Загрузка файлов
+          const filesSnapshot = await getDocs(collection(db, 'midi_files'));
+          const filesData: MidiFile[] = [];
           
-          if (filesError) throw filesError;
+          filesSnapshot.forEach((doc) => {
+            const data = doc.data();
+            filesData.push({
+              id: doc.id,
+              name: data.name,
+              author: data.author,
+              sequences: data.sequences,
+              rating: data.rating || 0,
+              createdAt: data.createdAt?.toMillis() || Date.now(),
+            });
+          });
 
-          const { data: votesData, error: votesError } = await supabase
-            .from('midi_votes')
-            .select('file_id, vote')
-            .eq('user_id', currentUserId);
+          // Загрузка голосов текущего пользователя
+          const votesQuery = query(
+            collection(db, 'midi_votes'),
+            where('userId', '==', currentUserId)
+          );
+          const votesSnapshot = await getDocs(votesQuery);
+          const userVotes: Record<string, 'up' | 'down'> = {};
           
-          if (votesError) throw votesError;
+          votesSnapshot.forEach((doc) => {
+            const data = doc.data();
+            userVotes[data.fileId] = data.vote > 0 ? 'up' : 'down';
+          });
 
-          const files: MidiFile[] = filesData.map(file => ({
-            id: file.id,
-            name: file.name,
-            author: file.author,
-            sequences: file.sequences,
-            rating: file.rating,
-            createdAt: new Date(file.created_at).getTime(),
-            userVote: votesData.find(v => v.file_id === file.id)?.vote === 1 ? 'up' : 'down'
+          // Объединяем файлы с голосами
+          const filesWithVotes = filesData.map(file => ({
+            ...file,
+            userVote: userVotes[file.id]
           }));
 
-          setMidiFiles(files);
-          saveFilesToLocal(files);
+          setMidiFiles(filesWithVotes);
+          saveFilesToLocal(filesWithVotes);
         } catch (error) {
-          console.error('Supabase load error:', error);
+          console.error('Firebase load error:', error);
           loadLocalFiles();
         }
       } else {
@@ -206,31 +225,23 @@ const MidiGallery = forwardRef<{
         throw new Error('Автор должен быть от 3 до 20 символов');
       }
 
-      const fileId = uuidv4();
-      const createdAt = new Date().toISOString();
-      
       try {
-        // Сохраняем только текстовые последовательности
-        const { error: insertError } = await supabase
-          .from('midi_files')
-          .insert({
-            id: fileId,
-            name,
-            author,
-            sequences: [sequence1, sequence2],
-            created_at: createdAt,
-            rating: 0
-          });
-        
-        if (insertError) throw insertError;
+        // Сохраняем только текстовые последовательности в Firebase
+        const docRef = await addDoc(collection(db, 'midi_files'), {
+          name,
+          author,
+          sequences: [sequence1, sequence2],
+          rating: 0,
+          createdAt: serverTimestamp(),
+        });
         
         const newFile: MidiFile = {
-          id: fileId,
+          id: docRef.id,
           name,
           author,
           sequences: [sequence1, sequence2] as [string, string],
           rating: 0,
-          createdAt: new Date(createdAt).getTime(),
+          createdAt: Date.now(),
         };
         
         const updatedFiles = [...midiFiles, newFile];
@@ -328,12 +339,18 @@ const MidiGallery = forwardRef<{
       
       try {
         if (isOnline) {
-          // UPSERT голоса
-          await supabase.from('midi_votes').upsert({
-            file_id: fileId,
-            user_id: currentUserId,
+          // Обновляем рейтинг в Firebase
+          await updateDoc(doc(db, 'midi_files', fileId), {
+            rating: file.rating + ratingChange
+          });
+          
+          // Сохраняем голос пользователя
+          const voteDocRef = doc(db, 'midi_votes', `${fileId}_${currentUserId}`);
+          await updateDoc(voteDocRef, {
+            fileId,
+            userId: currentUserId,
             vote: voteValue
-          }, { onConflict: 'file_id,user_id' });
+          }, { merge: true });
         }
       } catch (error) {
         toast.error('Ошибка голосования');
@@ -359,8 +376,19 @@ const MidiGallery = forwardRef<{
       
       try {
         if (isOnline) {
-          // Удаляем запись из таблицы
-          await supabase.from('midi_files').delete().eq('id', fileId);
+          // Удаляем запись из Firebase
+          await deleteDoc(doc(db, 'midi_files', fileId));
+          
+          // Удаляем все голоса для этого файла
+          const votesQuery = query(
+            collection(db, 'midi_votes'),
+            where('fileId', '==', fileId)
+          );
+          
+          const votesSnapshot = await getDocs(votesQuery);
+          votesSnapshot.forEach(async (voteDoc) => {
+            await deleteDoc(voteDoc.ref);
+          });
         }
         
         // Обновление состояния
