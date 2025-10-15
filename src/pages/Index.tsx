@@ -31,7 +31,7 @@ const Index = () => {
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [screenshotTitle, setScreenshotTitle] = useState("");
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
-  const [currentPlayingNote, setCurrentPlayingNote] = useState<{sequenceIndex: number, noteIndex: number} | null>(null);
+  const [currentPlayingNoteIndex, setCurrentPlayingNoteIndex] = useState<number>(-1);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -40,6 +40,7 @@ const Index = () => {
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const imageCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const notePlaybackTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
     const fetchInstruments = async () => {
@@ -239,6 +240,45 @@ const Index = () => {
     setNoteStates(newStates);
   };
 
+  // Функция для запуска подсветки нот
+  const startNoteHighlight = () => {
+    // Сначала сбрасываем все таймауты и текущую ноту
+    stopNoteHighlight();
+    setCurrentPlayingNoteIndex(-1);
+    
+    let accumulatedTime = 0;
+    
+    parsedNotes.forEach((note, index) => {
+      // Таймаут для начала ноты
+      const startTimeout = setTimeout(() => {
+        setCurrentPlayingNoteIndex(index);
+        console.log(`Note ${index} started: ${note.symbol}${note.octave}`);
+      }, accumulatedTime);
+      
+      notePlaybackTimeoutsRef.current.push(startTimeout);
+      
+      // Таймаут для окончания ноты
+      const endTimeout = setTimeout(() => {
+        if (index === parsedNotes.length - 1) {
+          // Если это последняя нота, сбрасываем подсветку
+          setCurrentPlayingNoteIndex(-1);
+          console.log('Playback finished');
+        }
+      }, accumulatedTime + note.duration);
+      
+      notePlaybackTimeoutsRef.current.push(endTimeout);
+      
+      accumulatedTime += note.duration;
+    });
+  };
+
+  // Функция для остановки подсветки нот
+  const stopNoteHighlight = () => {
+    notePlaybackTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+    notePlaybackTimeoutsRef.current = [];
+    setCurrentPlayingNoteIndex(-1);
+  };
+
   const handlePlayWithDelay = () => {
     if (isPlayButtonWaiting || isPlayButtonActive) {
       if (playDelayTimeoutRef.current) {
@@ -249,6 +289,9 @@ const Index = () => {
       if (midiSequencerRef.current && isPlayButtonActive) {
         midiSequencerRef.current.handlePlay();
       }
+      
+      // Останавливаем подсветку
+      stopNoteHighlight();
       
       setIsPlayButtonWaiting(false);
       setIsPlayButtonActive(false);
@@ -264,16 +307,16 @@ const Index = () => {
       if (midiSequencerRef.current) {
         midiSequencerRef.current.registerPlaybackEndCallback(() => {
           setIsPlayButtonActive(false);
+          // Останавливаем подсветку при завершении воспроизведения
+          stopNoteHighlight();
         });
         
         midiSequencerRef.current.handlePlay();
+        
+        // Запускаем подсветку нот
+        startNoteHighlight();
       }
     }, 2000);
-  };
-
-  // Обработчик для изменения текущей ноты
-  const handleCurrentNoteChange = (sequenceIndex: number, noteIndex: number) => {
-    setCurrentPlayingNote(noteIndex >= 0 ? { sequenceIndex, noteIndex } : null);
   };
 
   // Оптимизированная проверка изображений с таймаутом
@@ -488,7 +531,6 @@ const Index = () => {
         
         <MidiSequencer 
           ref={midiSequencerRef}
-          onCurrentNoteChange={handleCurrentNoteChange}
         />
         
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
@@ -727,9 +769,7 @@ const Index = () => {
                     const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
                     
                     // Проверяем, является ли эта нота текущей воспроизводимой
-                    const isActive = currentPlayingNote && 
-                                    currentPlayingNote.sequenceIndex === 0 && // Первая последовательность
-                                    currentPlayingNote.noteIndex === index;
+                    const isActive = currentPlayingNoteIndex === index;
 
                     return (
                       <div 

@@ -335,11 +335,19 @@ const MidiSequencer = forwardRef<{
             
             const startTimeout = setTimeout(() => {
               updateSequence(seqIndex, 'currentNoteIndex', noteIndex);
+              // Вызываем callback для передачи информации о текущей ноте
+              if (onCurrentNoteChange) {
+                onCurrentNoteChange(seqIndex, noteIndex);
+              }
             }, currentTime);
             
             const endTimeout = setTimeout(() => {
               if (noteIndex === sequences[seqIndex].parsedNotes.length - 1) {
                 updateSequence(seqIndex, 'currentNoteIndex', -1);
+                // Сбрасываем текущую ноту при завершении последовательности
+                if (onCurrentNoteChange) {
+                  onCurrentNoteChange(seqIndex, -1);
+                }
               }
             }, currentTime + adjustedDuration);
             
@@ -385,6 +393,11 @@ const MidiSequencer = forwardRef<{
     stopSequence();
     setIsPlaying(false);
     setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
+    
+    // Сбрасываем текущую ноту во всех компонентах
+    if (onCurrentNoteChange) {
+      onCurrentNoteChange(0, -1);
+    }
     
     timeoutRefs.current.forEach(timeout => clearTimeout(timeout));
     timeoutRefs.current = [];
