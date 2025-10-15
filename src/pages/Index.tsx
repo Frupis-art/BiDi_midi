@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import MidiSequencer from '@/components/MidiSequencer';
 import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 
 type Note = {
   symbol: string;
@@ -20,7 +21,7 @@ const Index = () => {
   const [tabInput, setTabInput] = useState("");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [instrument, setInstrument] = useState("recorder");
-  const [notesPerRow, setNotesPerRow] = useState(8); // Заменяем imageSize на notesPerRow
+  const [imageSize, setImageSize] = useState(100);
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const [availableInstruments, setAvailableInstruments] = useState<string[]>([]);
   const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
@@ -144,26 +145,63 @@ const Index = () => {
     try {
       await waitForImages(tabContainerRef.current);
       
-      const originalStyles: string[] = [];
-      const noteElements = tabContainerRef.current.querySelectorAll('.note-container');
+      // Создаем временный контейнер для A4 формата
+      const printContainer = document.createElement('div');
+      printContainer.style.width = '210mm'; // A4 ширина
+      printContainer.style.minHeight = '297mm'; // A4 высота
+      printContainer.style.padding = '20mm';
+      printContainer.style.backgroundColor = 'white';
+      printContainer.style.boxSizing = 'border-box';
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-10000px';
+      printContainer.style.top = '0';
       
+      // Добавляем заголовок
+      const titleEl = document.createElement('div');
+      titleEl.style.textAlign = 'center';
+      titleEl.style.marginBottom = '20px';
+      titleEl.style.fontSize = '24px';
+      titleEl.style.fontWeight = 'bold';
+      titleEl.textContent = screenshotTitle;
+      printContainer.appendChild(titleEl);
+      
+      // Клонируем и настраиваем контент
+      const contentClone = tabContainerRef.current.cloneNode(true) as HTMLDivElement;
+      contentClone.style.width = '100%';
+      contentClone.style.backgroundColor = 'white';
+      contentClone.style.padding = '0';
+      contentClone.style.border = 'none';
+      
+      // Сохраняем оригинальные размеры изображений
+      const noteElements = contentClone.querySelectorAll('.note-container');
       noteElements.forEach(el => {
         const element = el as HTMLElement;
-        originalStyles.push(element.style.cssText);
-        element.style.display = 'flex';
-        element.style.flexDirection = 'column';
-        element.style.position = 'relative';
+        element.style.width = `${imageSize}px`;
+        element.style.minHeight = `${imageSize * 3 + 60}px`;
+        
+        const images = element.querySelectorAll('img');
+        images.forEach(img => {
+          img.style.width = `${imageSize}px`;
+          if (img.alt.includes('tab')) {
+            img.style.height = `${imageSize * 1.5}px`;
+          } else {
+            img.style.height = `${imageSize * 1.5}px`;
+          }
+        });
       });
+      
+      printContainer.appendChild(contentClone);
+      document.body.appendChild(printContainer);
 
-      const canvas = await html2canvas(tabContainerRef.current, {
+      const canvas = await html2canvas(printContainer, {
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        scale: 2, // Высокое качество для печати
       });
       
-      noteElements.forEach((el, i) => {
-        (el as HTMLElement).style.cssText = originalStyles[i];
-      });
+      // Убираем временный контейнер
+      document.body.removeChild(printContainer);
       
       const image = canvas.toDataURL('image/png');
       const link = document.createElement('a');
@@ -175,7 +213,7 @@ const Index = () => {
       
       setScreenshotTitle("");
       setShowScreenshotDialog(false);
-      toast.success('Скриншот сохранен!');
+      toast.success('Скриншот сохранен в формате A4!');
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
       toast.error('Не удалось создать скриншот');
@@ -435,9 +473,6 @@ const Index = () => {
     return `/tabs/${instrument}/${imageName}.png`;
   };
 
-  // Рассчитываем ширину контейнера на основе количества нот в строке
-  const containerWidth = notesPerRow * 120; // 120px на каждую ноту (100px + отступы)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-2 md:py-8">
       <div className="container mx-auto px-2 md:px-4">
@@ -535,15 +570,15 @@ const Index = () => {
               
               <div className="flex flex-col">
                 <label className="block mb-2 font-medium">
-                  Нот в строке: {notesPerRow}
+                  Размер изображений: {imageSize}px
                 </label>
                 <div className="w-full relative">
                   <input
                     type="range"
-                    min="2"
-                    max="20"
-                    value={notesPerRow}
-                    onChange={(e) => setNotesPerRow(parseInt(e.target.value))}
+                    min="50"
+                    max="200"
+                    value={imageSize}
+                    onChange={(e) => setImageSize(parseInt(e.target.value))}
                     className="w-full accent-[#0f172a] custom-slider relative"
                     style={{
                       height: '8px',
@@ -649,7 +684,10 @@ const Index = () => {
                       />
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setShowScreenshotDialog(false)}
+                          onClick={() => {
+                            setShowScreenshotDialog(false);
+                            setScreenshotTitle("");
+                          }}
                           className="flex-1 bg-gray-500 text-white py-2 rounded hover:bg-gray-600 transition-colors"
                         >
                           Отмена
@@ -668,118 +706,106 @@ const Index = () => {
                 
                 <div 
                   ref={tabContainerRef}
-                  className="border rounded bg-white p-4 mx-auto"
+                  className="flex flex-wrap items-center p-2 border rounded bg-gray-50"
                   style={{ 
-                    width: `${containerWidth}px`,
-                    maxWidth: '100%'
+                    gap: "2px",
+                    rowGap: "15px"
                   }}
                 >
-                  {/* Заголовок для скриншота */}
-                  {screenshotTitle && (
-                    <div className="text-center mb-6">
-                      <h2 className="text-2xl font-bold">{screenshotTitle}</h2>
-                    </div>
-                  )}
-                  
-                  <div 
-                    className="flex flex-wrap justify-center"
-                    style={{ 
-                      gap: "20px",
-                    }}
-                  >
-                    {parsedNotes.map((note, index) => {
-                      const noteImagePath = getNoteImagePath(note);
-                      const tabImagePath = getTabImagePath(note);
-                      const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
-                      
-                      return (
+                  {parsedNotes.map((note, index) => {
+                    const noteImagePath = getNoteImagePath(note);
+                    const tabImagePath = getTabImagePath(note);
+                    const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        className="note-container flex flex-col items-center"
+                        style={{ 
+                          width: `${imageSize}px`,
+                          minHeight: `${imageSize * 3 + 60}px`,
+                          position: 'relative'
+                        }}
+                      >
+                        {/* Верхнее окошко - длительность */}
                         <div 
-                          key={index} 
-                          className="note-container flex flex-col items-center"
+                          className="font-semibold rounded w-full text-center flex items-center justify-center"
                           style={{ 
-                            width: '100px',
+                            height: '30px',
+                            padding: '2px 5px',
+                            fontSize: `${Math.max(8, Math.min(16, imageSize * 0.12))}px`,
+                            boxSizing: 'border-box',
+                            backgroundColor: '#f1f5f9',
+                            zIndex: 10,
+                            position: 'relative',
+                            marginBottom: '15px'
                           }}
                         >
-                          {/* Верхнее окошко - длительность */}
-                          <div 
-                            className="font-semibold rounded w-full text-center flex items-center justify-center mb-2"
-                            style={{ 
-                              height: '30px',
-                              padding: '2px 5px',
-                              fontSize: '14px',
-                              boxSizing: 'border-box',
-                              backgroundColor: '#f1f5f9',
-                              zIndex: 10,
-                              position: 'relative',
-                            }}
-                          >
-                            {note.duration}
-                          </div>
-                          
-                          {/* Среднее окошко - картинка ноты */}
-                          <div 
-                            className="relative mb-2"
-                            style={{ 
-                              width: '100px', 
-                              height: '150px',
-                              flexShrink: 0
-                            }}
-                          >
-                            <img
-                              src={noteImagePath}
-                              alt={note.symbol}
-                              className="border rounded bg-white"
-                              style={{ 
-                                width: '100%', 
-                                height: '100%',
-                                objectFit: "contain",
-                                position: 'relative',
-                                zIndex: 5,
-                              }}
-                              onError={(e) => {
-                                if (!e.currentTarget) return;
-                                e.currentTarget.src = '/tabs/NO_notes.png';
-                              }}
-                            />
-                          </div>
-                          
-                          {/* Нижнее окошко - картинка табулатуры */}
-                          <div 
-                            className="relative"
-                            style={{ 
-                              width: '100px', 
-                              height: '150px',
-                              flexShrink: 0
-                            }}
-                          >
-                            <img
-                              src={tabImagePath}
-                              alt={`${note.symbol} tab`}
-                              className="border-2 border-transparent rounded bg-white transition-all duration-300"
-                              style={{ 
-                                width: '100%', 
-                                height: '100%',
-                                objectFit: "contain",
-                                position: 'relative',
-                                zIndex: 5,
-                                cursor: isClickable ? 'pointer' : 'default',
-                                borderColor: isClickable ? '#3b82f6' : 'transparent'
-                              }}
-                              onClick={() => {
-                                if (isClickable) {
-                                  handleImageClick(index);
-                                }
-                              }}
-                              onError={(e) => {
-                                if (!e.currentTarget) return;
-                                e.currentTarget.src = '/tabs/NO_notes.png';
-                              }}
-                            />
-                          </div>
+                          {note.duration}
                         </div>
-                      );
-                    })}
-                  </div>
+                        
+                        {/* Среднее окошко - картинка ноты */}
+                        <div 
+                          className="relative mb-2"
+                          style={{ 
+                            width: `${imageSize}px`, 
+                            height: `${imageSize * 1.5}px`,
+                            flexShrink: 0
+                          }}
+                        >
+                          <img
+                            src={noteImagePath}
+                            alt={note.symbol}
+                            className="border rounded bg-white"
+                            style={{ 
+                              width: '100%', 
+                              height: '100%',
+                              objectFit: "contain",
+                              position: 'relative',
+                              zIndex: 5,
+                            }}
+                            onError={(e) => {
+                              if (!e.currentTarget) return;
+                              e.currentTarget.src = '/tabs/NO_notes.png';
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Нижнее окошко - картинка табулатуры */}
+                        <div 
+                          className="relative"
+                          style={{ 
+                            width: `${imageSize}px`, 
+                            height: `${imageSize * 1.5}px`,
+                            flexShrink: 0
+                          }}
+                        >
+                          <img
+                            src={tabImagePath}
+                            alt={`${note.symbol} tab`}
+                            className="border rounded bg-white"
+                            style={{ 
+                              width: '100%', 
+                              height: '100%',
+                              objectFit: "contain",
+                              position: 'relative',
+                              zIndex: 5,
+                              cursor: isClickable ? 'pointer' : 'default'
+                            }}
+                            onClick={() => {
+                              if (isClickable) {
+                                handleImageClick(index);
+                              }
+                            }}
+                            onError={(e) => {
+                              if (!e.currentTarget) return;
+                              e.currentTarget.src = '/tabs/NO_notes.png';
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -812,17 +838,6 @@ const Index = () => {
       `}</style>
     </div>
   );
-};
-
-// Добавляем toast для уведомлений
-const toast = {
-  error: (message: string) => {
-    // Простая реализация toast для демонстрации
-    alert(`Ошибка: ${message}`);
-  },
-  success: (message: string) => {
-    alert(`Успех: ${message}`);
-  }
 };
 
 export default Index;
