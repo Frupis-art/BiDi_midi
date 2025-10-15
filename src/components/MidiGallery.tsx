@@ -20,8 +20,7 @@ import {
   where, 
   orderBy,
   serverTimestamp,
-  Timestamp,
-  setDoc
+  Timestamp
 } from 'firebase/firestore';
 
 export interface MidiFile {
@@ -347,7 +346,7 @@ const MidiGallery = forwardRef<{
           
           // Сохраняем голос пользователя
           const voteDocRef = doc(db, 'midi_votes', `${fileId}_${currentUserId}`);
-          await setDoc(voteDocRef, {
+          await updateDoc(voteDocRef, {
             fileId,
             userId: currentUserId,
             vote: voteValue
