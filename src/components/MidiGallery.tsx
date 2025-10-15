@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { ArrowUp, ArrowDown, Upload, Download, RotateCcw, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Download, RotateCcw, Trash2, Wifi, WifiOff, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -13,14 +13,11 @@ import {
   collection, 
   addDoc, 
   getDocs, 
-  updateDoc, 
   deleteDoc, 
-  doc, 
+  doc,
   query, 
-  where, 
-  orderBy,
-  serverTimestamp,
-  Timestamp
+  where,
+  serverTimestamp
 } from 'firebase/firestore';
 
 export interface MidiFile {
@@ -28,8 +25,6 @@ export interface MidiFile {
   name: string;
   author: string;
   sequences: [string, string];
-  rating: number;
-  userVote?: 'up' | 'down';
   createdAt: number;
 }
 
@@ -43,15 +38,11 @@ const MidiGallery = forwardRef<{
 }, MidiGalleryProps>(
   ({ onLoadFile }, ref) => {
     const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
-    const [sortBy, setSortBy] = useState<'rating' | 'date'>('date');
+    const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [adminSequences, setAdminSequences] = useState<Record<string, string[]>>({});
-    const [adminUnlocked, setAdminUnlocked] = useState<Record<string, boolean>>({});
     const [open, setOpen] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
-
-    // Секретная админская комбинация
-    const ADMIN_SEQUENCE = ['up', 'down', 'down', 'up', 'up', 'up', 'up', 'up', 'up', 'down', 'down', 'down', 'down'];
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Инициализация пользователя
     const [currentUserId] = useState(() => {
@@ -174,32 +165,12 @@ const MidiGallery = forwardRef<{
               name: data.name,
               author: data.author,
               sequences: data.sequences,
-              rating: data.rating || 0,
               createdAt: data.createdAt?.toMillis() || Date.now(),
             });
           });
 
-          // Загрузка голосов текущего пользователя
-          const votesQuery = query(
-            collection(db, 'midi_votes'),
-            where('userId', '==', currentUserId)
-          );
-          const votesSnapshot = await getDocs(votesQuery);
-          const userVotes: Record<string, 'up' | 'down'> = {};
-          
-          votesSnapshot.forEach((doc) => {
-            const data = doc.data();
-            userVotes[data.fileId] = data.vote > 0 ? 'up' : 'down';
-          });
-
-          // Объединяем файлы с голосами
-          const filesWithVotes = filesData.map(file => ({
-            ...file,
-            userVote: userVotes[file.id]
-          }));
-
-          setMidiFiles(filesWithVotes);
-          saveFilesToLocal(filesWithVotes);
+          setMidiFiles(filesData);
+          saveFilesToLocal(filesData);
         } catch (error) {
           console.error('Firebase load error:', error);
           loadLocalFiles();
@@ -231,7 +202,6 @@ const MidiGallery = forwardRef<{
           name,
           author,
           sequences: [sequence1, sequence2],
-          rating: 0,
           createdAt: serverTimestamp(),
         });
         
@@ -240,7 +210,6 @@ const MidiGallery = forwardRef<{
           name,
           author,
           sequences: [sequence1, sequence2] as [string, string],
-          rating: 0,
           createdAt: Date.now(),
         };
         
@@ -252,109 +221,7 @@ const MidiGallery = forwardRef<{
         return newFile;
       } catch (error) {
         console.error('Upload failed:', error);
-        throw new Error('Ошибка сохранения: ' + error.message);
-      }
-    };
-
-    // Обработка админской последовательности
-    const handleAdminSequence = (fileId: string, action: 'up' | 'down') => {
-      const currentSequence = adminSequences[fileId] || [];
-      const newSequence = [...currentSequence, action];
-      
-      // Проверяем, совпадает ли текущая последовательность с началом админской
-      const isValidSoFar = ADMIN_SEQUENCE.slice(0, newSequence.length).every(
-        (expectedAction, index) => expectedAction === newSequence[index]
-      );
-      
-      if (!isValidSoFar) {
-        // Неправильная последовательность - сбрасываем
-        setAdminSequences(prev => ({
-          ...prev,
-          [fileId]: []
-        }));
-        return;
-      }
-      
-      // Обновляем последовательность
-      setAdminSequences(prev => ({
-        ...prev,
-        [fileId]: newSequence
-      }));
-      
-      // Проверяем, завершена ли админская последовательность
-      if (newSequence.length === ADMIN_SEQUENCE.length) {
-        setAdminUnlocked(prev => ({
-          ...prev,
-          [fileId]: true
-        }));
-        
-        // Сбрасываем последовательность
-        setAdminSequences(prev => ({
-          ...prev,
-          [fileId]: []
-        }));
-        
-        toast.success('🔐 Админские права активированы', { duration: 2000 });
-        
-        // Автоматически скрываем админский доступ через 10 секунд
-        setTimeout(() => {
-          setAdminUnlocked(prev => ({
-            ...prev,
-            [fileId]: false
-          }));
-        }, 10000);
-      }
-    };
-
-    // Голосование
-    const handleVote = async (fileId: string, voteType: 'up' | 'down') => {
-      // Админская последовательность
-      handleAdminSequence(fileId, voteType);
-      
-      const voteValue = voteType === 'up' ? 1 : -1;
-      const file = midiFiles.find(f => f.id === fileId);
-      
-      if (!file) return;
-      
-      // Оптимистичное обновление
-      const currentVote = file.userVote;
-      let ratingChange = voteValue;
-      
-      if (currentVote === 'up') {
-        ratingChange -= 1;
-      } else if (currentVote === 'down') {
-        ratingChange += 1;
-      }
-      
-      const updatedFiles = midiFiles.map(f => 
-        f.id === fileId ? {
-          ...f,
-          rating: f.rating + ratingChange,
-          userVote: voteType
-        } : f
-      );
-      
-      setMidiFiles(updatedFiles);
-      saveFilesToLocal(updatedFiles);
-      
-      try {
-        if (isOnline) {
-          // Обновляем рейтинг в Firebase
-          await updateDoc(doc(db, 'midi_files', fileId), {
-            rating: file.rating + ratingChange
-          });
-          
-          // Сохраняем голос пользователя
-          const voteDocRef = doc(db, 'midi_votes', `${fileId}_${currentUserId}`);
-          await updateDoc(voteDocRef, {
-            fileId,
-            userId: currentUserId,
-            vote: voteValue
-          }, { merge: true });
-        }
-      } catch (error) {
-        toast.error('Ошибка голосования');
-        setMidiFiles(midiFiles); // Откат изменений
+        throw new Error('Ошибка сохранения: ' + (error as Error).message);
       }
     };
 
@@ -378,17 +245,6 @@ const MidiGallery = forwardRef<{
         if (isOnline) {
           // Удаляем запись из Firebase
           await deleteDoc(doc(db, 'midi_files', fileId));
-          
-          // Удаляем все голоса для этого файла
-          const votesQuery = query(
-            collection(db, 'midi_votes'),
-            where('fileId', '==', fileId)
-          );
-          
-          const votesSnapshot = await getDocs(votesQuery);
-          votesSnapshot.forEach(async (voteDoc) => {
-            await deleteDoc(voteDoc.ref);
-          });
         }
         
         // Обновление состояния
@@ -396,22 +252,9 @@ const MidiGallery = forwardRef<{
         setMidiFiles(updatedFiles);
         saveFilesToLocal(updatedFiles);
         
-        // Очищаем админское состояние
-        setAdminUnlocked(prev => {
-          const newState = { ...prev };
-          delete newState[fileId];
-          return newState;
-        });
-        
-        setAdminSequences(prev => {
-          const newState = { ...prev };
-          delete newState[fileId];
-          return newState;
-        });
-        
         toast.success(`Файл удален`);
       } catch (error) {
-        toast.error('Ошибка удаления: ' + error.message);
+        toast.error('Ошибка удаления: ' + (error as Error).message);
       }
     };
 
@@ -424,12 +267,22 @@ const MidiGallery = forwardRef<{
       }
     };
 
+    // Фильтрация файлов по поисковому запросу
+    const filteredFiles = midiFiles.filter(file => 
+      file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      file.author.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     // Сортировка файлов
-    const sortedFiles = [...midiFiles].sort((a, b) => {
-      if (sortBy === 'rating') {
-        return sortOrder === 'desc' ? b.rating - a.rating : a.rating - b.rating;
+    const sortedFiles = [...filteredFiles].sort((a, b) => {
+      if (sortBy === 'name') {
+        return sortOrder === 'desc' 
+          ? b.name.localeCompare(a.name) 
+          : a.name.localeCompare(b.name);
       } else {
-        return sortOrder === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt;
+        return sortOrder === 'desc' 
+          ? b.createdAt - a.createdAt 
+          : a.createdAt - b.createdAt;
       }
     });
 
@@ -472,13 +325,13 @@ const MidiGallery = forwardRef<{
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Select value={sortBy} onValueChange={(value: 'rating' | 'date') => setSortBy(value)}>
+                <Select value={sortBy} onValueChange={(value: 'name' | 'date') => setSortBy(value)}>
                   <SelectTrigger className="w-20 md:w-24 h-7 md:h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="rating">Рейтинг</SelectItem>
-                    <SelectItem value="date">Новое</SelectItem>
+                    <SelectItem value="name">Название</SelectItem>
+                    <SelectItem value="date">Дата</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -499,6 +352,18 @@ const MidiGallery = forwardRef<{
                   <RotateCcw className="w-3 h-3" />
                 </Button>
               </div>
+              <div className="flex-1 w-full sm:w-auto">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                  <input
+                    type="text"
+                    placeholder="Поиск..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-2 py-1 border rounded text-xs"
+                  />
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CollapsibleContent>
@@ -512,7 +377,7 @@ const MidiGallery = forwardRef<{
               
               {sortedFiles.length === 0 ? (
                 <p className="text-muted-foreground text-center py-2 text-xs">
-                  Галерея пуста
+                  {searchQuery ? 'Ничего не найдено' : 'Галерея пуста'}
                 </p>
               ) : (
                 <div className="space-y-1 max-h-60 overflow-y-auto">
@@ -538,18 +403,15 @@ const MidiGallery = forwardRef<{
                         >
                           <Download className="w-2 h-2 md:w-3 md:h-3" />
                         </Button>
-                        {/* Админская кнопка удаления */}
-                        {adminUnlocked[file.id] && (
-                          <Button
-                            onClick={() => handleDeleteFile(file.id)}
-                            variant="destructive"
-                            size="sm"
-                            className="w-4 h-4 md:w-5 md:h-5 p-0"
-                            title="🔐 Удалить файл (АДМИН)"
-                          >
-                            <Trash2 className="w-2 h-2 md:w-3 md:h-3" />
-                          </Button>
-                        )}
+                        <Button
+                          onClick={() => handleDeleteFile(file.id)}
+                          variant="destructive"
+                          size="sm"
+                          className="w-4 h-4 md:w-5 md:h-5 p-0"
+                          title="Удалить файл"
+                        >
+                          <Trash2 className="w-2 h-2 md:w-3 md:h-3" />
+                        </Button>
                       </div>
 
                       {/* Название файла */}
@@ -559,33 +421,6 @@ const MidiGallery = forwardRef<{
                           title={`${file.name} - ${file.author} (ID: ${file.id})`}
                         >
                           {file.name} - {file.author}
-                        </span>
-                      </div>
-
-                      {/* Кнопки голосования */}
-                      <div className="flex gap-0.5">
-                        <Button
-                          onClick={() => handleVote(file.id, 'up')}
-                          variant={file.userVote === 'up' ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-4 h-4 md:w-5 md:h-5 p-0"
-                        >
-                          <ArrowUp className="w-2 h-2 text-green-600" />
-                        </Button>
-                        <Button
-                          onClick={() => handleVote(file.id, 'down')}
-                          variant={file.userVote === 'down' ? 'destructive' : 'outline'}
-                          size="sm"
-                          className="w-4 h-4 md:w-5 md:h-5 p-0"
-                        >
-                          <ArrowDown className="w-2 h-2 text-red-600" />
-                        </Button>
-                      </div>
-
-                      {/* Рейтинг */}
-                      <div className="min-w-[1.5rem] text-center">
-                        <span className={`text-xs font-semibold ${file.rating < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {file.rating}
                         </span>
                       </div>
                     </div>

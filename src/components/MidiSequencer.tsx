@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, VolumeX, Volume2, Plus, Minus, FileText, Heart } from 'lucide-react';
+import { CirclePlay, Save, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Upload, Download, Music, Globe, Trash2, VolumeX, Volume2, Plus, Minus, Heart } from 'lucide-react';
 import MidiGallery, { MidiFile } from './MidiGallery';
-import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi, importXml } from '@/utils/midiUtils';
+import { parseNoteSequence, playSequence, stopSequence, exportMidi, importMidi } from '@/utils/midiUtils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
 
@@ -73,7 +73,6 @@ const MidiSequencer = forwardRef<{
   const [deletedSequences, setDeletedSequences] = useState<SequenceData[]>([]);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const xmlFileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
   const midiGalleryRef = useRef<any>(null); // Ref для управления MidiGallery
 
@@ -269,29 +268,11 @@ const MidiSequencer = forwardRef<{
   };
 
   const handleMute = (sequenceIndex: number) => {
-    const currentMuted = sequences[sequenceIndex].isMuted;
-    updateSequence(sequenceIndex, 'isMuted', !currentMuted);
-    
-    if (sequences[sequenceIndex].isSolo) {
-      updateSequence(sequenceIndex, 'isSolo', false);
-    }
+    updateSequence(sequenceIndex, 'isMuted', !sequences[sequenceIndex].isMuted);
   };
 
   const handleSolo = (sequenceIndex: number) => {
-    const currentSolo = sequences[sequenceIndex].isSolo;
-    updateSequence(sequenceIndex, 'isSolo', !currentSolo);
-    
-    // Если включаем solo, mute остальные последовательности
-    if (!currentSolo) {
-      setSequences(prev => prev.map((seq, i) => 
-        i === sequenceIndex 
-          ? { ...seq, isSolo: true }
-          : { ...seq, isMuted: true, isSolo: false }
-      ));
-    } else {
-      // Если выключаем solo, сбрасываем mute для всех
-      setSequences(prev => prev.map(seq => ({ ...seq, isMuted: false })));
-    }
+    updateSequence(sequenceIndex, 'isSolo', !sequences[sequenceIndex].isSolo);
   };
 
   const handlePlay = async () => {
@@ -318,7 +299,11 @@ const MidiSequencer = forwardRef<{
         const seq = sequences[i];
         const result = analysisResults[i];
         
-        if (result?.hasValidSequence && !seq.isMuted) {
+        // Определяем, должна ли последовательность играть
+        const hasSolo = sequences.some(s => s.isSolo);
+        const shouldPlay = hasSolo ? seq.isSolo : !seq.isMuted;
+        
+        if (result?.hasValidSequence && shouldPlay) {
           playPromises.push(playSequence(seq.parsedNotes, speed[0], seq.selectedInstrument, seq.volume));
         }
       }
@@ -488,62 +473,51 @@ const MidiSequencer = forwardRef<{
     }
   };
 
-  const handleXmlImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.mxl') && !file.name.toLowerCase().endsWith('.musicxml')) {
-      toast.error('Пожалуйста, выберите MXL файл');
-      return;
-    }
-
-    // Останавливаем воспроизведение при импорте
-    stopPlayback();
-
-    try {
-      const { sequences: importedSequences } = await importXml(file);
-      
-      // Очищаем все существующие парсеры
-      const clearedSequences: SequenceData[] = [];
-      
-      // Создаем новые последовательности для каждой импортированной партии
-      importedSequences.forEach((sequence, index) => {
-        clearedSequences.push({
-          sequence,
-          parsedNotes: [],
-          selectedInstrument: 'piano',
-          isMuted: false,
-          isSolo: false,
-          volume: 0.7,
-          currentNoteIndex: -1
-        });
+  // Функция загрузки файла из галереи - очищаем ВСЕ парсеры
+  const handleLoadFromGallery = (sequence1: string, sequence2: string) => {
+    // Создаем новые последовательности, полностью заменяя существующие
+    const newSequences: SequenceData[] = [];
+    
+    if (sequence1) {
+      newSequences.push({
+        sequence: sequence1,
+        parsedNotes: [],
+        selectedInstrument: 'piano',
+        isMuted: false,
+        isSolo: false,
+        volume: 0.7,
+        currentNoteIndex: -1
       });
-      
-      // Если не было импортировано ни одной партии, создаем пустую последовательность
-      if (clearedSequences.length === 0) {
-        clearedSequences.push({
-          sequence: '',
-          parsedNotes: [],
-          selectedInstrument: 'piano',
-          isMuted: false,
-          isSolo: false,
-          volume: 0.7,
-          currentNoteIndex: -1
-        });
-      }
-      
-      setSequences(clearedSequences);
-      setDeletedSequences([]); // Очищаем историю удаленных последовательностей
-      
-      toast.success(`MXL импортирован (${importedSequences.length} ${importedSequences.length === 1 ? 'партия' : 'партий'})`);
-    } catch (error) {
-      console.error('MXL Import error:', error);
-      toast.error('Ошибка импорта MXL: ' + (error as Error).message);
     }
-
-    if (xmlFileInputRef.current) {
-      xmlFileInputRef.current.value = '';
+    
+    if (sequence2) {
+      newSequences.push({
+        sequence: sequence2,
+        parsedNotes: [],
+        selectedInstrument: 'piano',
+        isMuted: false,
+        isSolo: false,
+        volume: 0.7,
+        currentNoteIndex: -1
+      });
     }
+    
+    // Если только одна последовательность, добавляем пустую вторую
+    while (newSequences.length < 2) {
+      newSequences.push({
+        sequence: '',
+        parsedNotes: [],
+        selectedInstrument: 'piano',
+        isMuted: false,
+        isSolo: false,
+        volume: 0.7,
+        currentNoteIndex: -1
+      });
+    }
+    
+    setSequences(newSequences);
+    setDeletedSequences([]);
+    toast.success('Последовательности загружены из галереи');
   };
 
   const renderSequenceWithHighlights = (notes: ParsedNote[], sequenceText: string, currentIndex: number) => {
@@ -604,17 +578,7 @@ const MidiSequencer = forwardRef<{
       setGalleryAuthor('');
       setShowGalleryDialog(false);
     } catch (error) {
-      toast.error('Ошибка загрузки: ' + error.message);
-    }
-  };
-
-  // Функция загрузки файла из галереи
-  const handleLoadFromGallery = (sequence1: string, sequence2: string) => {
-    if (sequence1) {
-      updateSequence(0, 'sequence', sequence1);
-    }
-    if (sequence2 && sequences.length > 1) {
-      updateSequence(1, 'sequence', sequence2);
+      toast.error('Ошибка загрузки: ' + (error as Error).message);
     }
   };
 
@@ -664,13 +628,6 @@ const MidiSequencer = forwardRef<{
                   onChange={handleFileImport}
                   className="hidden"
                 />
-                <input
-                  ref={xmlFileInputRef}
-                  type="file"
-                  accept=".mxl,.musicxml"
-                  onChange={handleXmlImport}
-                  className="hidden"
-                />
                 <Button
                   onClick={() => {
                     setSequences(prev => prev.map(seq => ({ ...seq, sequence: '' })));
@@ -692,16 +649,6 @@ const MidiSequencer = forwardRef<{
                   <Upload className="w-3 h-3 mr-1" />
                   <span className="hidden md:inline">{t('openMidi')}</span>
                   <span className="md:hidden">MIDI</span>
-                </Button>
-                <Button
-                  onClick={() => xmlFileInputRef.current?.click()}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs px-2 py-1 h-7 md:h-8"
-                >
-                  <FileText className="w-3 h-3 mr-1" />
-                  <span className="hidden md:inline">Импорт MXL</span>
-                  <span className="md:hidden">XML</span>
                 </Button>
               </div>
             </div>
