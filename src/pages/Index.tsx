@@ -471,7 +471,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-2 md:py-8">
+    <div className="min-h-screen bg-background py-2 md:py-8">
       <div className="container mx-auto px-2 md:px-4">
         <h1 className="text-xl md:text-4xl font-bold text-center mb-2 md:mb-8 text-foreground">
           BiDi MIDI
@@ -480,8 +480,8 @@ const Index = () => {
         <MidiSequencer ref={midiSequencerRef} />
         
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-          <div className="mt-12 bg-white rounded-lg shadow-md p-4 md:p-6">
-            <h2 className="text-2xl font-bold mb-4 text-center">WoodWind Fingering</h2>
+          <div className="mt-12 bg-card rounded-lg shadow-md p-4 md:p-6">
+            <h2 className="text-2xl font-bold mb-4 text-center text-card-foreground">WoodWind Fingering</h2>
             
             <div className="mb-4">
               <label className="block mb-2 font-medium">Введите ноты:</label>
@@ -492,7 +492,7 @@ const Index = () => {
     value={tabInput}
     onChange={handleTextareaChange}
     placeholder="Пример: C4D#5(500)PG3(2000)"
-    className="w-full border-2 border-[#e2e8f0] rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#0f172a] min-h-[100px] resize-none"
+    className="w-full border-2 border-input rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground min-h-[100px] resize-none"
     style={{ 
       minHeight: '100px', 
       maxHeight: '300px', 
@@ -534,10 +534,10 @@ const Index = () => {
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={handleTabConvert}
-                    className="bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors"
+                    className="bg-card border-2 border-border rounded-full w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors"
                     title="Конвертировать"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-card-foreground" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
                   </button>
@@ -551,11 +551,7 @@ const Index = () => {
                 <select
                   value={instrument}
                   onChange={(e) => setInstrument(e.target.value)}
-                  className="border-2 border-[#e2e8f0] rounded px-3 py-2 w-full focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
-                  style={{
-                    backgroundColor: 'white',
-                    color: '#334155',
-                  }}
+                  className="border-2 border-input rounded px-3 py-2 w-full focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground"
                 >
                   {availableInstruments.map(instr => (
                     <option key={instr} value={instr}>
@@ -576,11 +572,11 @@ const Index = () => {
                     max="200"
                     value={imageSize}
                     onChange={(e) => setImageSize(parseInt(e.target.value))}
-                    className="w-full accent-[#0f172a] custom-slider relative"
+                    className="w-full custom-slider relative"
                     style={{
                       height: '8px',
                       borderRadius: '4px',
-                      backgroundColor: '#e2e8f0',
+                      backgroundColor: 'hsl(var(--border))',
                       outline: 'none',
                       WebkitAppearance: 'none',
                       zIndex: 10,
@@ -593,30 +589,30 @@ const Index = () => {
             
             {isLoading && (
               <div className="text-center py-4">
-                <p className="text-gray-600">Загрузка изображений для {instrument}...</p>
+                <p className="text-muted-foreground">Загрузка изображений для {instrument}...</p>
               </div>
             )}
             
             {parsedNotes.length > 0 && (
               <div className="mt-6 relative">
                 {isLoading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-20 rounded-lg">
-                    <p className="text-lg font-medium">Загрузка изображений для {instrument}...</p>
+                  <div className="absolute inset-0 bg-background/70 flex items-center justify-center z-20 rounded-lg">
+                    <p className="text-lg font-medium text-foreground">Загрузка изображений для {instrument}...</p>
                   </div>
                 )}
                 
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold">Результат:</h3>
+                  <h3 className="text-xl font-semibold text-card-foreground">Результат:</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={refreshImages}
                       disabled={isLoading || isTakingScreenshot}
-                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
+                      className={`bg-card border-2 border-border rounded-full w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors ${
                         isLoading || isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Обновить изображения"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-card-foreground" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                       </svg>
                     </button>
@@ -624,14 +620,14 @@ const Index = () => {
                     <button
                       onClick={handlePlayWithDelay}
                       disabled={isTakingScreenshot || isLoading}
-                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
+                      className={`bg-card border-2 border-border rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
                         isTakingScreenshot ? "opacity-50 cursor-not-allowed" : ""
                       } ${
                         isPlayButtonWaiting 
-                          ? "animate-pulse bg-blue-100 border-blue-300" 
+                          ? "animate-pulse bg-secondary border-secondary" 
                           : isPlayButtonActive 
-                            ? "bg-green-100 border-green-300" 
-                            : "hover:bg-[#f1f5f9]"
+                            ? "bg-accent border-accent" 
+                            : "hover:bg-accent"
                       }`}
                       title={
                         isPlayButtonWaiting 
@@ -642,11 +638,11 @@ const Index = () => {
                       }
                     >
                       {isPlayButtonWaiting || isPlayButtonActive ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-card-foreground" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 00-1-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
                         </svg>
                       ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-card-foreground" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M8 5v10l7-5-7-5z"/>
                         </svg>
                       )}
@@ -655,12 +651,12 @@ const Index = () => {
                     <button
                       onClick={openScreenshotDialog}
                       disabled={isTakingScreenshot || isLoading}
-                      className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
+                      className={`bg-card border-2 border-border rounded-full w-10 h-10 flex items-center justify-center hover:bg-accent transition-colors ${
                         isTakingScreenshot || isLoading ? "opacity-50 cursor-not-allowed" : ""
                       }`}
                       title="Скриншот"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-card-foreground" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                       </svg>
                     </button>
@@ -669,7 +665,7 @@ const Index = () => {
                 
                 <div 
                   ref={tabContainerRef}
-                  className="flex flex-wrap items-center p-2 border rounded bg-gray-50"
+                  className="flex flex-wrap items-center p-2 border border-border rounded bg-muted"
                   style={{ 
                     gap: "2px",
                     rowGap: "15px"
@@ -696,13 +692,12 @@ const Index = () => {
                         }}
                       >
                         <div 
-                          className="font-semibold rounded w-full text-center flex items-center justify-center"
+                          className="font-semibold rounded w-full text-center flex items-center justify-center bg-secondary text-secondary-foreground"
                           style={{ 
                             height: '20px',
                             padding: '2px 5px',
                             fontSize: `${Math.max(8, Math.min(16, imageSize * 0.12))}px`,
                             boxSizing: 'border-box',
-                            backgroundColor: '#f1f5f9',
                             zIndex: 10,
                             position: 'relative',
                             marginBottom: '15px'
@@ -722,7 +717,7 @@ const Index = () => {
                           <img
                             src={imagePath}
                             alt={note.symbol}
-                            className="border rounded bg-white"
+                            className="border border-border rounded bg-card"
                             style={{ 
                               width: '100%', 
                               height: '100%',
@@ -792,8 +787,8 @@ const Index = () => {
           -webkit-appearance: none;
           width: 20px;
           height: 20px;
-          background: white;
-          border: 2px solid #cbd5e1;
+          background: hsl(var(--card));
+          border: 2px solid hsl(var(--border));
           border-radius: 50%;
           cursor: pointer;
         }
@@ -801,8 +796,8 @@ const Index = () => {
         input[type="range"]::-moz-range-thumb {
           width: 20px;
           height: 20px;
-          background: white;
-          border: 2px solid #cbd5e1;
+          background: hsl(var(--card));
+          border: 2px solid hsl(var(--border));
           border-radius: 50%;
           cursor: pointer;
         }
