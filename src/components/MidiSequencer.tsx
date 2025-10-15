@@ -35,10 +35,14 @@ interface SequenceData {
   currentNoteIndex: number;
 }
 
+interface MidiSequencerProps {
+  onCurrentNoteChange?: (sequenceIndex: number, noteIndex: number) => void;
+}
+
 const MidiSequencer = forwardRef<{ 
   handlePlay: () => void;
   registerPlaybackEndCallback: (callback: () => void) => void;
-}>((props, ref) => {
+}, MidiSequencerProps>(({ onCurrentNoteChange }, ref) => {
   const { language, toggleLanguage, t } = useLanguage();
   
   // Инициализируем с двумя последовательностями
@@ -121,9 +125,17 @@ const MidiSequencer = forwardRef<{
 
   // Обновление последовательности
   const updateSequence = (index: number, field: keyof SequenceData, value: any) => {
-    setSequences(prev => prev.map((seq, i) => 
-      i === index ? { ...seq, [field]: value } : seq
-    ));
+    setSequences(prev => prev.map((seq, i) => {
+      if (i === index) {
+        const updatedSeq = { ...seq, [field]: value };
+        // Если изменяется currentNoteIndex, вызываем callback
+        if (field === 'currentNoteIndex' && onCurrentNoteChange) {
+          onCurrentNoteChange(index, value);
+        }
+        return updatedSeq;
+      }
+      return seq;
+    }));
   };
 
   // Анализ всех последовательностей

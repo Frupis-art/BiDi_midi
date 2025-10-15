@@ -31,6 +31,7 @@ const Index = () => {
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [screenshotTitle, setScreenshotTitle] = useState("");
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
+  const [currentPlayingNote, setCurrentPlayingNote] = useState<{sequenceIndex: number, noteIndex: number} | null>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -270,6 +271,11 @@ const Index = () => {
     }, 2000);
   };
 
+  // Обработчик для изменения текущей ноты
+  const handleCurrentNoteChange = (sequenceIndex: number, noteIndex: number) => {
+    setCurrentPlayingNote(noteIndex >= 0 ? { sequenceIndex, noteIndex } : null);
+  };
+
   // Оптимизированная проверка изображений с таймаутом
   const checkImageExists = (path: string): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -480,7 +486,10 @@ const Index = () => {
           BiDi MIDI
         </h1>
         
-        <MidiSequencer ref={midiSequencerRef} />
+        <MidiSequencer 
+          ref={midiSequencerRef}
+          onCurrentNoteChange={handleCurrentNoteChange}
+        />
         
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
           <div className="mt-12 bg-white rounded-lg shadow-md p-4 md:p-6">
@@ -717,6 +726,11 @@ const Index = () => {
                     const tabImagePath = getTabImagePath(note);
                     const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
                     
+                    // Проверяем, является ли эта нота текущей воспроизводимой
+                    const isActive = currentPlayingNote && 
+                                    currentPlayingNote.sequenceIndex === 0 && // Первая последовательность
+                                    currentPlayingNote.noteIndex === index;
+
                     return (
                       <div 
                         key={index} 
@@ -735,10 +749,12 @@ const Index = () => {
                             padding: '2px 5px',
                             fontSize: `${Math.max(8, Math.min(16, imageSize * 0.12))}px`,
                             boxSizing: 'border-box',
-                            backgroundColor: '#f1f5f9',
+                            backgroundColor: isActive ? '#dcfce7' : '#f1f5f9', // Зеленый фон для активной ноты
                             zIndex: 10,
                             position: 'relative',
-                            marginBottom: '15px'
+                            marginBottom: '15px',
+                            border: isActive ? '2px solid #22c55e' : '1px solid #e2e8f0', // Зеленая рамка для активной
+                            transition: 'all 0.3s ease'
                           }}
                         >
                           {note.duration}
@@ -756,13 +772,16 @@ const Index = () => {
                           <img
                             src={noteImagePath}
                             alt={note.symbol}
-                            className="border rounded bg-white"
+                            className="rounded bg-white"
                             style={{ 
                               width: '100%', 
                               height: '100%',
                               objectFit: "contain",
                               position: 'relative',
                               zIndex: 5,
+                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0', // Утолщенная зеленая рамка
+                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none', // Свечение для активной
+                              transition: 'all 0.3s ease'
                             }}
                             onError={(e) => {
                               if (!e.currentTarget) return;
@@ -783,14 +802,17 @@ const Index = () => {
                           <img
                             src={tabImagePath}
                             alt={`${note.symbol} tab`}
-                            className="border rounded bg-white"
+                            className="rounded bg-white"
                             style={{ 
                               width: '100%', 
                               height: '100%',
                               objectFit: "contain",
                               position: 'relative',
                               zIndex: 5,
-                              cursor: isClickable ? 'pointer' : 'default'
+                              cursor: isClickable ? 'pointer' : 'default',
+                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0', // Утолщенная зеленая рамка
+                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none', // Свечение для активной
+                              transition: 'all 0.3s ease'
                             }}
                             onClick={() => {
                               if (isClickable) {
@@ -809,6 +831,86 @@ const Index = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Блок с ссылками и сносками */}
+        <div className="w-full max-w-4xl mx-auto px-4 md:px-6 mt-8">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-bold mb-4 text-center">Полезные ссылки</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <a 
+                href="https://audio-convert.com/ru/mp3-converter/mp3-to-midi" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
+              >
+                <h4 className="font-semibold text-lg mb-2 text-gray-800">MP3 в MIDI</h4>
+                <p className="text-sm text-gray-600">
+                  Конвертируйте MP3 файлы в MIDI формат для использования в секвенсере
+                </p>
+              </a>
+              
+              <a 
+                href="https://webmscore-pwa.librescore.org/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all duration-200"
+              >
+                <h4 className="font-semibold text-lg mb-2 text-gray-800">MIDI конвертер</h4>
+                <p className="text-sm text-gray-600">
+                  Конвертируйте MIDI в другие форматы (текст, звук, ноты)
+                </p>
+              </a>
+              
+              <a 
+                href="https://bitmidi.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block p-4 border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all duration-200"
+              >
+                <h4 className="font-semibold text-lg mb-2 text-gray-800">Библиотека MIDI</h4>
+                <p className="text-sm text-gray-600">
+                  Большая коллекция MIDI файлов для вдохновения и обучения
+                </p>
+              </a>
+            </div>
+            
+            <div className="border-t pt-4 text-center">
+              <div className="mb-3">
+                <p className="text-lg font-semibold text-gray-800">© 2025 BiDi MIDI</p>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-4 text-sm text-gray-600">
+                <a 
+                  href="https://github.com/Frupis-art/BiDi_midi" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 hover:text-blue-600 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                  </svg>
+                  GitHub репозиторий
+                </a>
+                
+                <span className="hidden sm:block">•</span>
+                
+                <div className="flex items-center gap-2">
+                  <span>Разработано: Frupis_art</span>
+                </div>
+                
+                <span className="hidden sm:block">•</span>
+                
+                <a 
+                  href="mailto:fly4ik@yandex.ru" 
+                  className="hover:text-blue-600 transition-colors"
+                >
+                  Контакт: fly4ik@yandex.ru
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>
