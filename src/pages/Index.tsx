@@ -1,6 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import MidiSequencer from '@/components/MidiSequencer';
 import html2canvas from 'html2canvas';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Note = {
   symbol: string;
@@ -27,7 +37,9 @@ const Index = () => {
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [refreshAttempts, setRefreshAttempts] = useState(0); // Счетчик попыток перезагрузки
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [screenshotTitle, setScreenshotTitle] = useState("");
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -129,16 +141,52 @@ const Index = () => {
     return Promise.all(promises);
   };
 
-  const takeScreenshot = async () => {
+  const openScreenshotDialog = () => {
+    if (parsedNotes.length === 0) {
+      alert('Сначала преобразуйте ноты в изображения');
+      return;
+    }
+    setScreenshotTitle("");
+    setIsDialogOpen(true);
+  };
+
+  const takeScreenshot = async (title: string) => {
     if (!tabContainerRef.current || isTakingScreenshot) return;
     
     setIsTakingScreenshot(true);
+    setIsDialogOpen(false);
     
     try {
       await waitForImages(tabContainerRef.current);
       
+      // Создаем временный контейнер с заголовком
+      const wrapperDiv = document.createElement('div');
+      wrapperDiv.style.cssText = 'background: #f5f5f5; padding: 20px; display: inline-block;';
+      
+      // Добавляем заголовок
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = title;
+      titleDiv.style.cssText = `
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 20px;
+        color: #1e293b;
+        font-family: system-ui, -apple-system, sans-serif;
+      `;
+      wrapperDiv.appendChild(titleDiv);
+      
+      // Клонируем содержимое табов
+      const clonedContent = tabContainerRef.current.cloneNode(true) as HTMLElement;
+      wrapperDiv.appendChild(clonedContent);
+      
+      // Временно добавляем в DOM (вне видимости)
+      wrapperDiv.style.position = 'absolute';
+      wrapperDiv.style.left = '-9999px';
+      document.body.appendChild(wrapperDiv);
+      
       const originalStyles: string[] = [];
-      const noteElements = tabContainerRef.current.querySelectorAll('.note-container');
+      const noteElements = wrapperDiv.querySelectorAll('.note-container');
       
       noteElements.forEach(el => {
         const element = el as HTMLElement;
@@ -148,20 +196,26 @@ const Index = () => {
         element.style.position = 'relative';
       });
 
-      const canvas = await html2canvas(tabContainerRef.current, {
+      const canvas = await html2canvas(wrapperDiv, {
         useCORS: true,
         logging: false,
         background: '#f5f5f5',
       });
       
-      noteElements.forEach((el, i) => {
-        (el as HTMLElement).style.cssText = originalStyles[i];
-      });
+      // Удаляем временный элемент
+      document.body.removeChild(wrapperDiv);
       
       const image = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = image;
-      link.download = `${instrument}-fingerchart-screenshot.png`;
+      
+      // Санитизация названия файла
+      const sanitizedTitle = title
+        .replace(/[/\\:*?"<>|]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50);
+      
+      link.download = `${sanitizedTitle}-${instrument}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -171,6 +225,14 @@ const Index = () => {
     } finally {
       setIsTakingScreenshot(false);
     }
+  };
+
+  const handleSaveScreenshot = () => {
+    if (!screenshotTitle.trim()) {
+      alert('Пожалуйста, введите название');
+      return;
+    }
+    takeScreenshot(screenshotTitle.trim());
   };
 
   const handleTabConvert = () => {
@@ -591,7 +653,7 @@ const Index = () => {
                     </button>
                     
                     <button
-                      onClick={takeScreenshot}
+                      onClick={openScreenshotDialog}
                       disabled={isTakingScreenshot || isLoading}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
                         isTakingScreenshot || isLoading ? "opacity-50 cursor-not-allowed" : ""
@@ -690,6 +752,37 @@ const Index = () => {
         </div>
       </div>
       
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Сохранить скриншот</DialogTitle>
+            <DialogDescription>
+              Введите название для скриншота (будет отображаться в заголовке)
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Название композиции"
+            value={screenshotTitle}
+            onChange={(e) => setScreenshotTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSaveScreenshot();
+              }
+            }}
+            maxLength={50}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleSaveScreenshot}>
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <style>{`
 
         .resize-handle:hover {

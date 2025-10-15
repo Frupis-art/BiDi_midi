@@ -283,7 +283,7 @@ export const exportMidi = async (
     await convertToMp3(notes1, notes2, speed);
   } else {
     const midiArray = midi.toArray();
-    return new Blob([midiArray], { type: 'audio/midi' });
+    return new Blob([new Uint8Array(midiArray)], { type: 'audio/midi' });
   }
 };
 
