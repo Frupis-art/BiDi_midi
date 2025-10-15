@@ -20,14 +20,16 @@ const Index = () => {
   const [tabInput, setTabInput] = useState("");
   const [parsedNotes, setParsedNotes] = useState<Note[]>([]);
   const [instrument, setInstrument] = useState("recorder");
-  const [imageSize, setImageSize] = useState(100);
+  const [notesPerRow, setNotesPerRow] = useState(8); // Заменяем imageSize на notesPerRow
   const [isTakingScreenshot, setIsTakingScreenshot] = useState(false);
   const [availableInstruments, setAvailableInstruments] = useState<string[]>([]);
   const [isPlayButtonWaiting, setIsPlayButtonWaiting] = useState(false);
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [refreshAttempts, setRefreshAttempts] = useState(0); // Счетчик попыток перезагрузки
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [screenshotTitle, setScreenshotTitle] = useState("");
+  const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
@@ -132,6 +134,11 @@ const Index = () => {
   const takeScreenshot = async () => {
     if (!tabContainerRef.current || isTakingScreenshot) return;
     
+    if (!screenshotTitle.trim()) {
+      toast.error("Введите название для скриншота");
+      return;
+    }
+    
     setIsTakingScreenshot(true);
     
     try {
@@ -151,7 +158,7 @@ const Index = () => {
       const canvas = await html2canvas(tabContainerRef.current, {
         useCORS: true,
         logging: false,
-        background: '#f5f5f5',
+        backgroundColor: '#ffffff',
       });
       
       noteElements.forEach((el, i) => {
@@ -161,13 +168,17 @@ const Index = () => {
       const image = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = image;
-      link.download = `${instrument}-fingerchart-screenshot.png`;
+      link.download = `${screenshotTitle.replace(/[^\wа-яА-Я\s]/gi, '').replace(/\s+/g, '_')}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      setScreenshotTitle("");
+      setShowScreenshotDialog(false);
+      toast.success('Скриншот сохранен!');
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
-      alert('Не удалось создать скриншот');
+      toast.error('Не удалось создать скриншот');
     } finally {
       setIsTakingScreenshot(false);
     }
@@ -408,6 +419,25 @@ const Index = () => {
     return state.availablePaths[state.currentIndex];
   };
 
+  // Функция для получения пути к изображению ноты (из папки notes)
+  const getNoteImagePath = (note: Note): string => {
+    if (note.pause) return '/tabs/notes/P.png';
+    
+    const imageName = getImageName(note);
+    return `/tabs/notes/${imageName}.png`;
+  };
+
+  // Функция для получения пути к изображению табулатуры
+  const getTabImagePath = (note: Note): string => {
+    if (note.pause) return '/tabs/P.png';
+    
+    const imageName = getImageName(note);
+    return `/tabs/${instrument}/${imageName}.png`;
+  };
+
+  // Рассчитываем ширину контейнера на основе количества нот в строке
+  const containerWidth = notesPerRow * 120; // 120px на каждую ноту (100px + отступы)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-2 md:py-8">
       <div className="container mx-auto px-2 md:px-4">
@@ -505,15 +535,15 @@ const Index = () => {
               
               <div className="flex flex-col">
                 <label className="block mb-2 font-medium">
-                  Размер изображений: {imageSize}px
+                  Нот в строке: {notesPerRow}
                 </label>
                 <div className="w-full relative">
                   <input
                     type="range"
-                    min="50"
-                    max="200"
-                    value={imageSize}
-                    onChange={(e) => setImageSize(parseInt(e.target.value))}
+                    min="2"
+                    max="20"
+                    value={notesPerRow}
+                    onChange={(e) => setNotesPerRow(parseInt(e.target.value))}
                     className="w-full accent-[#0f172a] custom-slider relative"
                     style={{
                       height: '8px',
@@ -591,7 +621,7 @@ const Index = () => {
                     </button>
                     
                     <button
-                      onClick={takeScreenshot}
+                      onClick={() => setShowScreenshotDialog(true)}
                       disabled={isTakingScreenshot || isLoading}
                       className={`bg-white border-2 border-[#e2e8f0] rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#f1f5f9] transition-colors ${
                         isTakingScreenshot || isLoading ? "opacity-50 cursor-not-allowed" : ""
@@ -605,84 +635,151 @@ const Index = () => {
                   </div>
                 </div>
                 
+                {/* Диалог для ввода названия скриншота */}
+                {showScreenshotDialog && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+                      <h3 className="text-lg font-semibold mb-4">Введите название для скриншота</h3>
+                      <input
+                        type="text"
+                        value={screenshotTitle}
+                        onChange={(e) => setScreenshotTitle(e.target.value)}
+                        placeholder="Название произведения"
+                        className="w-full border-2 border-[#e2e8f0] rounded px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowScreenshotDialog(false)}
+                          className="flex-1 bg-gray-500 text-white py-2 rounded hover:bg-gray-600 transition-colors"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          onClick={takeScreenshot}
+                          disabled={!screenshotTitle.trim() || isTakingScreenshot}
+                          className="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isTakingScreenshot ? 'Сохранение...' : 'Сохранить'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div 
                   ref={tabContainerRef}
-                  className="flex flex-wrap items-center p-2 border rounded bg-gray-50"
+                  className="border rounded bg-white p-4 mx-auto"
                   style={{ 
-                    gap: "2px",
-                    rowGap: "15px"
+                    width: `${containerWidth}px`,
+                    maxWidth: '100%'
                   }}
                 >
-                  {parsedNotes.map((note, index) => {
-                    const state = noteStates[index] || { 
-                      currentIndex: 0,
-                      availablePaths: [],
-                      hasAlts: false
-                    };
-                    
-                    const imagePath = getImagePath(index);
-                    const isClickable = !note.pause && state.hasAlts && !isLoading;
-                    
-                    return (
-                      <div 
-                        key={index} 
-                        className="note-container flex flex-col items-center"
-                        style={{ 
-                          width: `${imageSize}px`,
-                          minHeight: `${imageSize + 30}px`,
-                          position: 'relative'
-                        }}
-                      >
+                  {/* Заголовок для скриншота */}
+                  {screenshotTitle && (
+                    <div className="text-center mb-6">
+                      <h2 className="text-2xl font-bold">{screenshotTitle}</h2>
+                    </div>
+                  )}
+                  
+                  <div 
+                    className="flex flex-wrap justify-center"
+                    style={{ 
+                      gap: "20px",
+                    }}
+                  >
+                    {parsedNotes.map((note, index) => {
+                      const noteImagePath = getNoteImagePath(note);
+                      const tabImagePath = getTabImagePath(note);
+                      const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
+                      
+                      return (
                         <div 
-                          className="font-semibold rounded w-full text-center flex items-center justify-center"
+                          key={index} 
+                          className="note-container flex flex-col items-center"
                           style={{ 
-                            height: '20px',
-                            padding: '2px 5px',
-                            fontSize: `${Math.max(8, Math.min(16, imageSize * 0.12))}px`,
-                            boxSizing: 'border-box',
-                            backgroundColor: '#f1f5f9',
-                            zIndex: 10,
-                            position: 'relative',
-                            marginBottom: '15px'
+                            width: '100px',
                           }}
                         >
-                          {note.duration}
-                        </div>
-                        
-                        <div 
-                          className="relative"
-                          style={{ 
-                            width: `${imageSize}px`, 
-                            height: `${imageSize}px`,
-                            flexShrink: 0
-                          }}
-                        >
-                          <img
-                            src={imagePath}
-                            alt={note.symbol}
-                            className="border rounded bg-white"
+                          {/* Верхнее окошко - длительность */}
+                          <div 
+                            className="font-semibold rounded w-full text-center flex items-center justify-center mb-2"
                             style={{ 
-                              width: '100%', 
-                              height: '100%',
-                              objectFit: "contain",
+                              height: '30px',
+                              padding: '2px 5px',
+                              fontSize: '14px',
+                              boxSizing: 'border-box',
+                              backgroundColor: '#f1f5f9',
+                              zIndex: 10,
                               position: 'relative',
-                              zIndex: 5,
-                              cursor: isClickable ? 'pointer' : 'default'
                             }}
-                            onClick={() => {
-                              if (isClickable) {
-                                handleImageClick(index);
-                              }
+                          >
+                            {note.duration}
+                          </div>
+                          
+                          {/* Среднее окошко - картинка ноты */}
+                          <div 
+                            className="relative mb-2"
+                            style={{ 
+                              width: '100px', 
+                              height: '150px',
+                              flexShrink: 0
                             }}
-                            onError={(e) => {
-                              if (!e.currentTarget) return;
-                              e.currentTarget.src = '/tabs/NO_notes.png';
+                          >
+                            <img
+                              src={noteImagePath}
+                              alt={note.symbol}
+                              className="border rounded bg-white"
+                              style={{ 
+                                width: '100%', 
+                                height: '100%',
+                                objectFit: "contain",
+                                position: 'relative',
+                                zIndex: 5,
+                              }}
+                              onError={(e) => {
+                                if (!e.currentTarget) return;
+                                e.currentTarget.src = '/tabs/NO_notes.png';
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Нижнее окошко - картинка табулатуры */}
+                          <div 
+                            className="relative"
+                            style={{ 
+                              width: '100px', 
+                              height: '150px',
+                              flexShrink: 0
                             }}
-                          />
+                          >
+                            <img
+                              src={tabImagePath}
+                              alt={`${note.symbol} tab`}
+                              className="border-2 border-transparent rounded bg-white transition-all duration-300"
+                              style={{ 
+                                width: '100%', 
+                                height: '100%',
+                                objectFit: "contain",
+                                position: 'relative',
+                                zIndex: 5,
+                                cursor: isClickable ? 'pointer' : 'default',
+                                borderColor: isClickable ? '#3b82f6' : 'transparent'
+                              }}
+                              onClick={() => {
+                                if (isClickable) {
+                                  handleImageClick(index);
+                                }
+                              }}
+                              onError={(e) => {
+                                if (!e.currentTarget) return;
+                                e.currentTarget.src = '/tabs/NO_notes.png';
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -691,10 +788,9 @@ const Index = () => {
       </div>
       
       <style>{`
-
         .resize-handle:hover {
-    opacity: 1;
-  }
+          opacity: 1;
+        }
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 20px;
@@ -716,6 +812,17 @@ const Index = () => {
       `}</style>
     </div>
   );
+};
+
+// Добавляем toast для уведомлений
+const toast = {
+  error: (message: string) => {
+    // Простая реализация toast для демонстрации
+    alert(`Ошибка: ${message}`);
+  },
+  success: (message: string) => {
+    alert(`Успех: ${message}`);
+  }
 };
 
 export default Index;
