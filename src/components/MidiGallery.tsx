@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Upload, Download, RotateCcw, Trash2, Wifi, WifiOff, Search } from 'lucide-react';
+import { Upload, Download, RotateCcw, Wifi, WifiOff, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 
 // Импортируем Firebase
 import { db } from '@/lib/firebase';
@@ -13,10 +12,6 @@ import {
   collection, 
   addDoc, 
   getDocs, 
-  deleteDoc, 
-  doc,
-  query, 
-  where,
   serverTimestamp
 } from 'firebase/firestore';
 
@@ -43,16 +38,6 @@ const MidiGallery = forwardRef<{
     const [open, setOpen] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-
-    // Инициализация пользователя
-    const [currentUserId] = useState(() => {
-      let userId = localStorage.getItem('midiGalleryUserId');
-      if (!userId) {
-        userId = 'user_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('midiGalleryUserId', userId);
-      }
-      return userId;
-    });
 
     // Функция для безопасного имени файла
     const safeFileName = (str: string) => 
@@ -233,31 +218,6 @@ const MidiGallery = forwardRef<{
         : 'Используется локальная копия');
     };
 
-    // Удаление файла
-    const handleDeleteFile = async (fileId: string) => {
-      const fileToDelete = midiFiles.find(f => f.id === fileId);
-      if (!fileToDelete) return;
-      
-      const confirmMessage = `Удалить файл "${fileToDelete.name}_${fileToDelete.author}_${fileToDelete.id}" из галереи?`;
-      if (!window.confirm(confirmMessage)) return;
-      
-      try {
-        if (isOnline) {
-          // Удаляем запись из Firebase
-          await deleteDoc(doc(db, 'midi_files', fileId));
-        }
-        
-        // Обновление состояния
-        const updatedFiles = midiFiles.filter(f => f.id !== fileId);
-        setMidiFiles(updatedFiles);
-        saveFilesToLocal(updatedFiles);
-        
-        toast.success(`Файл удален`);
-      } catch (error) {
-        toast.error('Ошибка удаления: ' + (error as Error).message);
-      }
-    };
-
     // Загрузка файла в последовательности
     const handleLoadFile = (file: MidiFile) => {
       const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
@@ -402,15 +362,6 @@ const MidiGallery = forwardRef<{
                           title="Скачать MIDI файл"
                         >
                           <Download className="w-2 h-2 md:w-3 md:h-3" />
-                        </Button>
-                        <Button
-                          onClick={() => handleDeleteFile(file.id)}
-                          variant="destructive"
-                          size="sm"
-                          className="w-4 h-4 md:w-5 md:h-5 p-0"
-                          title="Удалить файл"
-                        >
-                          <Trash2 className="w-2 h-2 md:w-3 md:h-3" />
                         </Button>
                       </div>
 
