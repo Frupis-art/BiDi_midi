@@ -19,4 +19,5 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  base: '/BiDi_midi/' // ← ДОБАВЬ ЭТУ СТРОЧКУ
 }));
