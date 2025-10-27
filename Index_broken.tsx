@@ -42,16 +42,10 @@ const Index = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const notePlaybackTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
-  // Базовый путь для GitHub Pages
-  const getBasePath = () => {
-    return import.meta.env.BASE_URL;
-  };
-
   useEffect(() => {
     const fetchInstruments = async () => {
       try {
-        const basePath = getBasePath();
-        const response = await fetch(`${basePath}tabs/instruments.json`);
+        const response = await fetch('/tabs/instruments.json');
         if (!response.ok) throw new Error("Failed to fetch instruments");
         
         const instruments = await response.json();
@@ -62,9 +56,7 @@ const Index = () => {
         }
       } catch (error) {
         console.error("Error loading instruments:", error);
-        // Fallback на стандартные инструменты
-        setAvailableInstruments(["recorder_B", "recorder_G", "clarinet", "flute", "YRF-21"]);
-        setInstrument("recorder_B");
+        setAvailableInstruments(["recorder", "clarinet", "flute", "cello"]);
       }
     };
 
@@ -337,7 +329,7 @@ const Index = () => {
         resolve(false);
         img.onload = null;
         img.onerror = null;
-      }, 1000); // Увеличили таймаут до 1000мс
+      }, 300); // Таймаут 300мс
 
       img.onload = () => {
         clearTimeout(timeout);
@@ -355,30 +347,24 @@ const Index = () => {
 
   // Функция для получения всех доступных путей изображений для ноты
   const getAvailablePaths = async (note: Note): Promise<{ paths: string[], hasAlts: boolean }> => {
-    const basePath = getBasePath();
-    
     if (note.pause) {
-      return { paths: [`${basePath}tabs/P.png`], hasAlts: false };
+      return { paths: ['/tabs/P.png'], hasAlts: false };
     }
     
     const imageName = getImageName(note);
-    const instrumentPath = `${basePath}tabs/${instrument}/`;
+    const basePath = `/tabs/${instrument}/`;
     const paths: string[] = [];
     let hasAlts = false;
     
     // Проверяем основное изображение
-    const mainPath = `${instrumentPath}${imageName}.png`;
-    console.log(`Проверка изображения: ${mainPath}`);
+    const mainPath = `${basePath}${imageName}.png`;
     if (await checkImageExists(mainPath)) {
       paths.push(mainPath);
-      console.log(`Изображение найдено: ${mainPath}`);
-    } else {
-      console.log(`Изображение не найдено: ${mainPath}`);
     }
     
     // Проверяем альтернативные изображения (до 3)
     for (let i = 1; i <= 3; i++) {
-      const altPath = `${instrumentPath}${imageName}_alt${i}.png`;
+      const altPath = `${basePath}${imageName}_alt${i}.png`;
       if (await checkImageExists(altPath)) {
         paths.push(altPath);
         hasAlts = true;
@@ -387,8 +373,7 @@ const Index = () => {
     
     // Если ничего не найдено, используем заглушку
     if (paths.length === 0) {
-      console.log(`Ни одного изображения не найдено для ${imageName}, используется заглушка`);
-      return { paths: [`${basePath}tabs/NO_notes.png`], hasAlts: false };
+      return { paths: ['/tabs/NO_notes.png'], hasAlts: false };
     }
     
     return { paths, hasAlts };
@@ -474,9 +459,8 @@ const Index = () => {
   useEffect(() => {
     if (Object.keys(noteStates).length > 0 && refreshAttempts < 2) {
       imageCheckTimeoutRef.current = setTimeout(() => {
-        const basePath = getBasePath();
         const hasMissingImages = Object.values(noteStates).some(
-          state => state.availablePaths.includes(`${basePath}tabs/NO_notes.png`)
+          state => state.availablePaths.includes('/tabs/NO_notes.png')
         );
         
         if (hasMissingImages) {
@@ -515,30 +499,27 @@ const Index = () => {
   };
 
   const getImagePath = (index: number): string => {
-    const basePath = getBasePath();
     const state = noteStates[index];
     if (!state || state.availablePaths.length === 0) {
-      return `${basePath}tabs/NO_notes.png`;
+      return '/tabs/NO_notes.png';
     }
     return state.availablePaths[state.currentIndex];
   };
 
   // Функция для получения пути к изображению ноты (из папки notes)
   const getNoteImagePath = (note: Note): string => {
-    const basePath = getBasePath();
-    if (note.pause) return `${basePath}tabs/notes/P.png`;
+    if (note.pause) return '/tabs/notes/P.png';
     
     const imageName = getImageName(note);
-    return `${basePath}tabs/notes/${imageName}.png`;
+    return `/tabs/notes/${imageName}.png`;
   };
 
   // Функция для получения пути к изображению табулатуры
   const getTabImagePath = (note: Note): string => {
-    const basePath = getBasePath();
-    if (note.pause) return `${basePath}tabs/P.png`;
+    if (note.pause) return '/tabs/P.png';
     
     const imageName = getImageName(note);
-    return `${basePath}tabs/${instrument}/${imageName}.png`;
+    return `/tabs/${instrument}/${imageName}.png`;
   };
 
   return (
@@ -630,15 +611,11 @@ const Index = () => {
                     color: '#334155',
                   }}
                 >
-                  {availableInstruments.length === 0 ? (
-                    <option value="">Загрузка инструментов...</option>
-                  ) : (
-                    availableInstruments.map(instr => (
-                      <option key={instr} value={instr}>
-                        {instr}
-                      </option>
-                    ))
-                  )}
+                  {availableInstruments.map(instr => (
+                    <option key={instr} value={instr}>
+                      {instr}
+                    </option>
+                  ))}
                 </select>
               </div>
               
@@ -788,7 +765,7 @@ const Index = () => {
                 >
                   {parsedNotes.map((note, index) => {
                     const noteImagePath = getNoteImagePath(note);
-                    const tabImagePath = getImagePath(index); // Используем getImagePath вместо getTabImagePath
+                    const tabImagePath = getTabImagePath(note);
                     const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
                     
                     // Проверяем, является ли эта нота текущей воспроизводимой
@@ -848,8 +825,7 @@ const Index = () => {
                             }}
                             onError={(e) => {
                               if (!e.currentTarget) return;
-                              const basePath = getBasePath();
-                              e.currentTarget.src = `${basePath}tabs/NO_notes.png`;
+                              e.currentTarget.src = '/tabs/NO_notes.png';
                             }}
                           />
                         </div>
@@ -885,8 +861,7 @@ const Index = () => {
                             }}
                             onError={(e) => {
                               if (!e.currentTarget) return;
-                              const basePath = getBasePath();
-                              e.currentTarget.src = `${basePath}tabs/NO_notes.png`;
+                              e.currentTarget.src = '/tabs/NO_notes.png';
                             }}
                           />
                         </div>
