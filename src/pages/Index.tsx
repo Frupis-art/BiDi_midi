@@ -28,7 +28,6 @@ const Index = () => {
   const [isPlayButtonActive, setIsPlayButtonActive] = useState(false);
   const [noteStates, setNoteStates] = useState<Record<number, NoteImageState>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [refreshAttempts, setRefreshAttempts] = useState(0);
   const [screenshotTitle, setScreenshotTitle] = useState("");
   const [showScreenshotDialog, setShowScreenshotDialog] = useState(false);
   const [currentPlayingNoteIndex, setCurrentPlayingNoteIndex] = useState<number>(-1);
@@ -38,7 +37,6 @@ const Index = () => {
     registerPlaybackEndCallback: (callback: () => void) => void;
   }>(null);
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const imageCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const notePlaybackTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
@@ -417,33 +415,6 @@ const Index = () => {
     initializeImagePaths();
   }, [parsedNotes, instrument]);
 
-  // Эффект для автоматического обновления изображений через 1.5 секунды
-  useEffect(() => {
-    if (Object.keys(noteStates).length > 0 && refreshAttempts < 2) {
-      imageCheckTimeoutRef.current = setTimeout(() => {
-        const basePath = getBasePath();
-        const hasMissingImages = Object.values(noteStates).some(
-          state => state.availablePaths.includes(`${basePath}tabs/NO_notes.png`)
-        );
-        
-        if (hasMissingImages) {
-          refreshImages();
-        }
-      }, 1500);
-    }
-    
-    return () => {
-      if (imageCheckTimeoutRef.current) {
-        clearTimeout(imageCheckTimeoutRef.current);
-      }
-    };
-  }, [noteStates, refreshAttempts]);
-
-  // Сбрасываем счетчик попыток при смене инструмента или нот
-  useEffect(() => {
-    setRefreshAttempts(0);
-  }, [instrument, parsedNotes]);
-
   const handleImageClick = async (index: number) => {
     const note = parsedNotes[index];
     if (note.pause) return; // Паузы не кликабельны
@@ -516,7 +487,7 @@ const Index = () => {
     return `${basePath}tabs/${instrument}/${imageName}.png`;
   };
 
-  // Функция для принудительной перезагрузки изображений
+  // Функция для принудительной перезагрузки изображений (только по кнопке)
   const refreshImages = async () => {
     if (parsedNotes.length === 0) return;
     
@@ -548,8 +519,6 @@ const Index = () => {
       console.error("Error refreshing images:", error);
     } finally {
       setIsLoading(false);
-      // Увеличиваем счетчик попыток
-      setRefreshAttempts(prev => prev + 1);
     }
   };
 
