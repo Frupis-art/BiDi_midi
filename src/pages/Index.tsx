@@ -363,71 +363,18 @@ const Index = () => {
     
     const imageName = getImageName(note);
     const instrumentPath = `${basePath}tabs/${instrument}/`;
-    const paths: string[] = [];
-    let hasAlts = false;
     
-    // Проверяем основное изображение
-    const mainPath = `${instrumentPath}${imageName}.png`;
-    console.log(`Проверка изображения: ${mainPath}`);
-    if (await checkImageExists(mainPath)) {
-      paths.push(mainPath);
-      console.log(`Изображение найдено: ${mainPath}`);
+    // ВСЕГДА начинаем с префикса _1
+    const initialPath = `${instrumentPath}${imageName}_1.png`;
+    
+    if (await checkImageExists(initialPath)) {
+      return { 
+        paths: [initialPath], // Только _1 изначально
+        hasAlts: true // Предполагаем, что могут быть альтернативы
+      };
     } else {
-      console.log(`Изображение не найдено: ${mainPath}`);
-    }
-    
-    // Проверяем альтернативные изображения (до 3)
-    for (let i = 1; i <= 3; i++) {
-      const altPath = `${instrumentPath}${imageName}_alt${i}.png`;
-      if (await checkImageExists(altPath)) {
-        paths.push(altPath);
-        hasAlts = true;
-      }
-    }
-    
-    // Если ничего не найдено, используем заглушку
-    if (paths.length === 0) {
-      console.log(`Ни одного изображения не найдено для ${imageName}, используется заглушка`);
+      console.log(`Изображение не найдено: ${initialPath}`);
       return { paths: [`${basePath}tabs/NO_notes.png`], hasAlts: false };
-    }
-    
-    return { paths, hasAlts };
-  };
-
-  // Функция для принудительной перезагрузки изображений
-  const refreshImages = async () => {
-    if (parsedNotes.length === 0) return;
-    
-    setIsLoading(true);
-    
-    try {
-      const newStates: Record<number, NoteImageState> = {};
-      
-      // Создаем массив промисов для параллельной проверки
-      const promises = parsedNotes.map(async (note, index) => {
-        const { paths, hasAlts } = await getAvailablePaths(note);
-        return { index, paths, hasAlts };
-      });
-      
-      // Ожидаем выполнения всех проверок
-      const results = await Promise.all(promises);
-      
-      // Формируем новое состояние
-      results.forEach(({ index, paths, hasAlts }) => {
-        newStates[index] = {
-          currentIndex: 0,
-          availablePaths: paths,
-          hasAlts
-        };
-      });
-      
-      setNoteStates(newStates);
-    } catch (error) {
-      console.error("Error refreshing images:", error);
-    } finally {
-      setIsLoading(false);
-      // Увеличиваем счетчик попыток
-      setRefreshAttempts(prev => prev + 1);
     }
   };
 
@@ -497,21 +444,49 @@ const Index = () => {
     setRefreshAttempts(0);
   }, [instrument, parsedNotes]);
 
-  const handleImageClick = (index: number) => {
-    setNoteStates(prev => {
-      const state = prev[index];
-      if (!state || !state.hasAlts) return prev;
-      
-      const nextIndex = (state.currentIndex + 1) % state.availablePaths.length;
-      
-      return {
+  const handleImageClick = async (index: number) => {
+    const note = parsedNotes[index];
+    if (note.pause) return; // Паузы не кликабельны
+    
+    const state = noteStates[index];
+    if (!state) return;
+    
+    const currentPath = state.availablePaths[state.currentIndex];
+    const baseName = getImageName(note);
+    const instrumentPath = `${getBasePath()}tabs/${instrument}/`;
+    
+    // Определяем текущий префикс и следующий
+    const currentMatch = currentPath.match(/_(\d+)\.png$/);
+    const currentPrefix = currentMatch ? parseInt(currentMatch[1]) : 1;
+    const nextPrefix = currentPrefix + 1;
+    
+    // Проверяем следующий префикс
+    const nextPath = `${instrumentPath}${baseName}_${nextPrefix}.png`;
+    
+    if (await checkImageExists(nextPath)) {
+      // Переключаемся на следующий префикс
+      setNoteStates(prev => ({
         ...prev,
         [index]: {
           ...state,
-          currentIndex: nextIndex
+          currentIndex: 0, // Всегда 0, т.к. у нас теперь один путь в массиве
+          availablePaths: [nextPath], // Заменяем массив на новый путь
+          hasAlts: true
         }
-      };
-    });
+      }));
+    } else {
+      // Возвращаемся к префиксу _1
+      const firstPath = `${instrumentPath}${baseName}_1.png`;
+      setNoteStates(prev => ({
+        ...prev,
+        [index]: {
+          ...state,
+          currentIndex: 0,
+          availablePaths: [firstPath],
+          hasAlts: true
+        }
+      }));
+    }
   };
 
   const getImagePath = (index: number): string => {
@@ -526,7 +501,7 @@ const Index = () => {
   // Функция для получения пути к изображению ноты (из папки notes)
   const getNoteImagePath = (note: Note): string => {
     const basePath = getBasePath();
-    if (note.pause) return `${basePath}tabs/notes/P.png`;
+    if (note.pause) return `${basePath}tabs/P.png`; // ИСПРАВЛЕНО: паузы из tabs/P.png
     
     const imageName = getImageName(note);
     return `${basePath}tabs/notes/${imageName}.png`;
@@ -539,6 +514,43 @@ const Index = () => {
     
     const imageName = getImageName(note);
     return `${basePath}tabs/${instrument}/${imageName}.png`;
+  };
+
+  // Функция для принудительной перезагрузки изображений
+  const refreshImages = async () => {
+    if (parsedNotes.length === 0) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const newStates: Record<number, NoteImageState> = {};
+      
+      // Создаем массив промисов для параллельной проверки
+      const promises = parsedNotes.map(async (note, index) => {
+        const { paths, hasAlts } = await getAvailablePaths(note);
+        return { index, paths, hasAlts };
+      });
+      
+      // Ожидаем выполнения всех проверок
+      const results = await Promise.all(promises);
+      
+      // Формируем новое состояние
+      results.forEach(({ index, paths, hasAlts }) => {
+        newStates[index] = {
+          currentIndex: 0,
+          availablePaths: paths,
+          hasAlts
+        };
+      });
+      
+      setNoteStates(newStates);
+    } catch (error) {
+      console.error("Error refreshing images:", error);
+    } finally {
+      setIsLoading(false);
+      // Увеличиваем счетчик попыток
+      setRefreshAttempts(prev => prev + 1);
+    }
   };
 
   return (
