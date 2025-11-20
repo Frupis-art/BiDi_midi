@@ -42,6 +42,7 @@ interface MidiSequencerProps {
 const MidiSequencer = forwardRef<{ 
   handlePlay: () => void;
   registerPlaybackEndCallback: (callback: () => void) => void;
+  getSpeed: () => number; // ДОБАВЛЕНО: метод для получения скорости
 }, MidiSequencerProps>(({ onCurrentNoteChange }, ref) => {
   const { language, toggleLanguage, t } = useLanguage();
   
@@ -75,11 +76,11 @@ const MidiSequencer = forwardRef<{
   const [galleryName, setGalleryName] = useState('');
   const [galleryAuthor, setGalleryAuthor] = useState('');
   const [deletedSequences, setDeletedSequences] = useState<SequenceData[]>([]);
-  const [showSaveHint, setShowSaveHint] = useState(false); // НОВОЕ: подсветка кнопки сохранения
+  const [showSaveHint, setShowSaveHint] = useState(false);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
-  const midiGalleryRef = useRef<any>(null); // Ref для управления MidiGallery
+  const midiGalleryRef = useRef<any>(null);
 
   const instruments = [
     { value: 'piano', label: 'Фортепиано' },
@@ -105,12 +106,10 @@ const MidiSequencer = forwardRef<{
   // Добавление новой последовательности (с восстановлением из истории)
   const addSequence = () => {
     if (deletedSequences.length > 0) {
-      // Восстанавливаем последнюю удаленную последовательность (LIFO)
       const restoredSequence = deletedSequences[deletedSequences.length - 1];
       setDeletedSequences(prev => prev.slice(0, -1));
       setSequences(prev => [...prev, restoredSequence]);
     } else {
-      // Создаем новую последовательность
       const newSequence: SequenceData = {
         sequence: '',
         parsedNotes: [],
@@ -138,7 +137,6 @@ const MidiSequencer = forwardRef<{
     setSequences(prev => prev.map((seq, i) => {
       if (i === index) {
         const updatedSeq = { ...seq, [field]: value };
-        // Если изменяется currentNoteIndex, вызываем callback
         if (field === 'currentNoteIndex' && onCurrentNoteChange) {
           onCurrentNoteChange(index, value);
         }
@@ -207,7 +205,6 @@ const MidiSequencer = forwardRef<{
       newOctave++;
     }
     
-    // Циклическое переключение октав
     if (newOctave < 0) newOctave = 8;
     if (newOctave > 8) newOctave = 0;
     
@@ -284,7 +281,6 @@ const MidiSequencer = forwardRef<{
     const newVolume = Math.max(0, Math.min(1, currentVolume + delta));
     updateSequence(sequenceIndex, 'volume', newVolume);
     
-    // Воспроизводим тестовый звук с новой громкостью
     const testNote = { note: 'C', octave: 4, duration: 300, isPause: false, startTime: 0, endTime: 300, originalText: 'C4', isError: false };
     playSequence([testNote], 1, sequences[sequenceIndex].selectedInstrument, newVolume);
   };
@@ -311,17 +307,14 @@ const MidiSequencer = forwardRef<{
     try {
       setIsPlaying(true);
       
-      // Сбрасываем индексы для всех последовательностей
       setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
       
-      // Воспроизводим все немутированные последовательности одновременно
       const playPromises = [];
       
       for (let i = 0; i < sequences.length; i++) {
         const seq = sequences[i];
         const result = analysisResults[i];
         
-        // Определяем, должна ли последовательность играть
         const hasSolo = sequences.some(s => s.isSolo);
         const shouldPlay = hasSolo ? seq.isSolo : !seq.isMuted;
         
@@ -334,7 +327,6 @@ const MidiSequencer = forwardRef<{
       
       timeoutRefs.current = [];
       
-      // Подсветка для всех последовательностей
       for (let seqIndex = 0; seqIndex < sequences.length; seqIndex++) {
         const result = analysisResults[seqIndex];
         
@@ -345,7 +337,6 @@ const MidiSequencer = forwardRef<{
             
             const startTimeout = setTimeout(() => {
               updateSequence(seqIndex, 'currentNoteIndex', noteIndex);
-              // Вызываем callback для передачи информации о текущей ноте
               if (onCurrentNoteChange) {
                 onCurrentNoteChange(seqIndex, noteIndex);
               }
@@ -354,7 +345,6 @@ const MidiSequencer = forwardRef<{
             const endTimeout = setTimeout(() => {
               if (noteIndex === sequences[seqIndex].parsedNotes.length - 1) {
                 updateSequence(seqIndex, 'currentNoteIndex', -1);
-                // Сбрасываем текущую ноту при завершении последовательности
                 if (onCurrentNoteChange) {
                   onCurrentNoteChange(seqIndex, -1);
                 }
@@ -367,7 +357,6 @@ const MidiSequencer = forwardRef<{
         }
       }
       
-      // Определяем максимальную длительность для завершения воспроизведения
       let maxDuration = 0;
       for (let i = 0; i < sequences.length; i++) {
         const result = analysisResults[i];
@@ -404,7 +393,6 @@ const MidiSequencer = forwardRef<{
     setIsPlaying(false);
     setSequences(prev => prev.map(seq => ({ ...seq, currentNoteIndex: -1 })));
     
-    // Сбрасываем текущую ноту во всех компонентах
     if (onCurrentNoteChange) {
       onCurrentNoteChange(0, -1);
     }
@@ -417,67 +405,59 @@ const MidiSequencer = forwardRef<{
     playbackEndCallbackRef.current = callback;
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: сохранение MIDI файла
- // ОБНОВЛЕННАЯ ФУНКЦИЯ: сохранение со ВСЕМИ дорожками
-const handleSaveOption = async (format: 'midi' | 'mp3') => {
-  if (!hasValidSequence) {
-    toast.error(t('playbackError'));
-    return;
-  }
-
-  try {
-    // Для MIDI используем новый подход со ВСЕМИ дорожками
-    if (format === 'midi') {
-      // Берем ВСЕ последовательности
-      const allSequences = sequences.map(seq => seq.sequence);
-      
-      // Парсим ВСЕ последовательности
-      const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
-      const allParsedNotes = allSequences.map(sequence => 
-        sequence ? parseNoteSequence(sequence, t) : []
-      );
-
-      console.log(`💾 Сохранение MIDI: ${allParsedNotes.length} дорожек`);
-
-      // Создаем MIDI со ВСЕМИ дорожками
-      const midiBlob = await exportMidi(allParsedNotes, speed[0], { format: 'midi' });
-
-      if (!midiBlob) {
-        toast.error('Не удалось создать MIDI файл');
-        return;
-      }
-
-      // Скачиваем
-      const url = URL.createObjectURL(midiBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `composition_${Date.now()}.mid`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 100);
-
-      toast.success(`${t('midiSaved')} (${allParsedNotes.length} дорожек)`);
-    } else {
-      // Для MP3 также используем ВСЕ дорожки
-      const allParsedNotes = sequences.map(seq => seq.parsedNotes);
-      
-      console.log(`💾 Сохранение Audio: ${allParsedNotes.length} дорожек`);
-
-      // Передаем массив всех дорожек в exportMidi
-      await exportMidi(allParsedNotes, speed[0], { format });
-      toast.success(`${t('audioSaved')} (${allParsedNotes.length} дорожек)`);
+  // ОБНОВЛЕННАЯ ФУНКЦИЯ: сохранение со ВСЕМИ дорожками
+  const handleSaveOption = async (format: 'midi' | 'mp3') => {
+    if (!hasValidSequence) {
+      toast.error(t('playbackError'));
+      return;
     }
 
-    setShowSaveDialog(false);
-  } catch (error) {
-    console.error('Export error:', error);
-    toast.error(t('saveError'));
-  }
-};
+    try {
+      if (format === 'midi') {
+        const allSequences = sequences.map(seq => seq.sequence);
+        
+        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+        const allParsedNotes = allSequences.map(sequence => 
+          sequence ? parseNoteSequence(sequence, t) : []
+        );
+
+        console.log(`💾 Сохранение MIDI: ${allParsedNotes.length} дорожек`);
+
+        const midiBlob = await exportMidi(allParsedNotes, speed[0], { format: 'midi' });
+
+        if (!midiBlob) {
+          toast.error('Не удалось создать MIDI файл');
+          return;
+        }
+
+        const url = URL.createObjectURL(midiBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `composition_${Date.now()}.mid`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+
+        toast.success(`${t('midiSaved')} (${allParsedNotes.length} дорожек)`);
+      } else {
+        const allParsedNotes = sequences.map(seq => seq.parsedNotes);
+        
+        console.log(`💾 Сохранение Audio: ${allParsedNotes.length} дорожек`);
+
+        await exportMidi(allParsedNotes, speed[0], { format });
+        toast.success(`${t('audioSaved')} (${allParsedNotes.length} дорожек)`);
+      }
+
+      setShowSaveDialog(false);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(t('saveError'));
+    }
+  };
 
   const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -488,7 +468,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
       return;
     }
 
-    // Останавливаем воспроизведение при импорте
     stopPlayback();
 
     try {
@@ -499,10 +478,8 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
         console.log(`📝 Последовательность ${i + 1}: длина ${seq.length} символов, первые 30 символов: "${seq.substring(0, 30)}..."`);
       });
       
-      // Очищаем все существующие парсеры
       const clearedSequences: SequenceData[] = [];
       
-      // Создаем новые последовательности для каждого импортированного трека
       importedSequences.forEach((sequence, index) => {
         console.log(`🎵 Создаем последовательность ${index + 1}: ${sequence.substring(0, 50)}...`);
         clearedSequences.push({
@@ -516,7 +493,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
         });
       });
       
-      // Если не было импортировано ни одного трека, создаем пустую последовательность
       if (clearedSequences.length === 0) {
         clearedSequences.push({
           sequence: '',
@@ -531,7 +507,7 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
       
       console.log(`🔄 Устанавливаем ${clearedSequences.length} последовательностей в состояние`);
       setSequences(clearedSequences);
-      setDeletedSequences([]); // Очищаем историю удаленных последовательностей
+      setDeletedSequences([]);
       
       toast.success(`${t('midiImported')} (${importedSequences.length} ${importedSequences.length === 1 ? 'трек' : 'треков'})`);
     } catch (error) {
@@ -544,9 +520,7 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
     }
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: загрузка файла из галереи - теперь принимает массив последовательностей
   const handleLoadFromGallery = (sequences: string[]) => {
-    // Создаем новые последовательности, полностью заменяя существующие
     const newSequences: SequenceData[] = sequences.map(sequence => ({
       sequence: sequence,
       parsedNotes: [],
@@ -557,7 +531,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
       currentNoteIndex: -1
     }));
     
-    // Если массив пустой, добавляем одну пустую последовательность
     if (newSequences.length === 0) {
       newSequences.push({
         sequence: '',
@@ -596,14 +569,12 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
     });
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: сохранение в галерею - теперь сохраняет ВСЕ последовательности
   const handleSaveToGallery = async () => {
     if (!galleryName.trim() || !galleryAuthor.trim()) {
       toast.error('Заполните все поля');
       return;
     }
 
-    // Увеличили лимит до 20 символов
     if (galleryName.length < 3 || galleryName.length > 20) {
       toast.error('Название должно быть от 3 до 20 символов');
       return;
@@ -614,7 +585,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
       return;
     }
 
-    // Проверка на допустимые символы
     const validChars = /^[a-zA-Zа-яА-Я0-9\s\-]+$/;
     if (!validChars.test(galleryName) || !validChars.test(galleryAuthor)) {
       toast.error('Используйте только буквы, цифры, пробелы и дефисы');
@@ -622,10 +592,8 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
     }
 
     try {
-      // ИСПРАВЛЕНИЕ: получаем ВСЕ последовательности
       const allSequences = sequences.map(seq => seq.sequence);
       
-      // Вызываем метод загрузки из галереи
       await midiGalleryRef.current?.uploadToGallery(allSequences, galleryName, galleryAuthor);
       
       setGalleryName('');
@@ -642,10 +610,11 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
     };
   }, []);
 
-  // Expose handlePlay through ref
+  // ДОБАВЛЕН МЕТОД getSpeed
   useImperativeHandle(ref, () => ({
     handlePlay,
-    registerPlaybackEndCallback
+    registerPlaybackEndCallback,
+    getSpeed: () => speed[0] // Возвращает текущую скорость
   }));
 
   return (
@@ -708,7 +677,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
             </div>
           </div>
 
-          {/* Рендерим все последовательности */}
           {sequences.map((seq, index) => {
             const analysisResult = analysisResults[index];
             
@@ -844,7 +812,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
             );
           })}
 
-          {/* Кнопки добавления/удаления последовательностей */}
           <div className="flex gap-2 justify-center">
             <Button
               onClick={addSequence}
@@ -929,7 +896,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
               </DialogContent>
             </Dialog>
 
-            {/* Кнопка сохранения в галерею */}
             <Dialog open={showGalleryDialog} onOpenChange={setShowGalleryDialog}>
               <DialogTrigger asChild>
                 <Button
@@ -991,7 +957,6 @@ const handleSaveOption = async (format: 'midi' | 'mp3') => {
         </CardContent>
       </Card>
       
-      {/* Компонент галереи */}
       <MidiGallery 
         ref={midiGalleryRef}
         onLoadFile={handleLoadFromGallery} 

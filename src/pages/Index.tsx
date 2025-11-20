@@ -35,6 +35,7 @@ const Index = () => {
   const midiSequencerRef = useRef<{ 
     handlePlay: () => void;
     registerPlaybackEndCallback: (callback: () => void) => void;
+    getSpeed: () => number; // ДОБАВЛЕНО: метод для получения скорости
   }>(null);
   const playDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -60,7 +61,6 @@ const Index = () => {
         }
       } catch (error) {
         console.error("Error loading instruments:", error);
-        // Fallback на стандартные инструменты
         setAvailableInstruments(["recorder_B", "recorder_G", "clarinet", "flute", "YRF-21"]);
         setInstrument("recorder_B");
       }
@@ -109,7 +109,6 @@ const Index = () => {
   const getImageName = (note: Note) => {
     if (note.pause) return "P";
     
-    // Автоматическая замена E# -> F, B# -> C
     if (note.sharp) {
       if (note.symbol === 'E') {
         return `F${note.octave}`;
@@ -153,10 +152,9 @@ const Index = () => {
     try {
       await waitForImages(tabContainerRef.current);
       
-      // Создаем временный контейнер для A4 формата
       const printContainer = document.createElement('div');
-      printContainer.style.width = '210mm'; // A4 ширина
-      printContainer.style.minHeight = '297mm'; // A4 высота
+      printContainer.style.width = '210mm';
+      printContainer.style.minHeight = '297mm';
       printContainer.style.padding = '20mm';
       printContainer.style.backgroundColor = 'white';
       printContainer.style.boxSizing = 'border-box';
@@ -164,7 +162,6 @@ const Index = () => {
       printContainer.style.left = '-10000px';
       printContainer.style.top = '0';
       
-      // Добавляем заголовок
       const titleEl = document.createElement('div');
       titleEl.style.textAlign = 'center';
       titleEl.style.marginBottom = '20px';
@@ -173,14 +170,12 @@ const Index = () => {
       titleEl.textContent = screenshotTitle;
       printContainer.appendChild(titleEl);
       
-      // Клонируем и настраиваем контент
       const contentClone = tabContainerRef.current.cloneNode(true) as HTMLDivElement;
       contentClone.style.width = '100%';
       contentClone.style.backgroundColor = 'white';
       contentClone.style.padding = '0';
       contentClone.style.border = 'none';
       
-      // Сохраняем оригинальные размеры изображений
       const noteElements = contentClone.querySelectorAll('.note-container');
       noteElements.forEach(el => {
         const element = el as HTMLElement;
@@ -205,10 +200,9 @@ const Index = () => {
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        scale: 2, // Высокое качество для печати
+        scale: 2,
       });
       
-      // Убираем временный контейнер
       document.body.removeChild(printContainer);
       
       const image = canvas.toDataURL('image/png');
@@ -234,7 +228,6 @@ const Index = () => {
     const notes = parseTabNotes(tabInput);
     setParsedNotes(notes);
     
-    // Инициализация состояний для новых нот
     const newStates: Record<number, NoteImageState> = {};
     notes.forEach((_, index) => {
       newStates[index] = { 
@@ -246,35 +239,33 @@ const Index = () => {
     setNoteStates(newStates);
   };
 
-  // Функция для запуска подсветки нот
-  const startNoteHighlight = () => {
-    // Сначала сбрасываем все таймауты и текущую ноту
+  // ОБНОВЛЕННАЯ ФУНКЦИЯ: запуск подсветки нот С УЧЕТОМ СКОРОСТИ
+  const startNoteHighlight = (playbackSpeed: number) => {
     stopNoteHighlight();
     setCurrentPlayingNoteIndex(-1);
     
     let accumulatedTime = 0;
     
     parsedNotes.forEach((note, index) => {
-      // Таймаут для начала ноты
+      // УЧИТЫВАЕМ СКОРОСТЬ ВОСПРОИЗВЕДЕНИЯ
+      const noteDuration = note.duration / playbackSpeed;
+      
       const startTimeout = setTimeout(() => {
         setCurrentPlayingNoteIndex(index);
-        console.log(`Note ${index} started: ${note.symbol}${note.octave}`);
+        console.log(`Note ${index} started: ${note.symbol}${note.octave} (speed: ${playbackSpeed}x)`);
       }, accumulatedTime);
       
       notePlaybackTimeoutsRef.current.push(startTimeout);
       
-      // Таймаут для окончания ноты
       const endTimeout = setTimeout(() => {
         if (index === parsedNotes.length - 1) {
-          // Если это последняя нота, сбрасываем подсветку
           setCurrentPlayingNoteIndex(-1);
           console.log('Playback finished');
         }
-      }, accumulatedTime + note.duration);
+      }, accumulatedTime + noteDuration);
       
       notePlaybackTimeoutsRef.current.push(endTimeout);
-      
-      accumulatedTime += note.duration;
+      accumulatedTime += noteDuration;
     });
   };
 
@@ -285,6 +276,7 @@ const Index = () => {
     setCurrentPlayingNoteIndex(-1);
   };
 
+  // ОБНОВЛЕННАЯ ФУНКЦИЯ: воспроизведение с учетом скорости
   const handlePlayWithDelay = () => {
     if (isPlayButtonWaiting || isPlayButtonActive) {
       if (playDelayTimeoutRef.current) {
@@ -296,7 +288,6 @@ const Index = () => {
         midiSequencerRef.current.handlePlay();
       }
       
-      // Останавливаем подсветку
       stopNoteHighlight();
       
       setIsPlayButtonWaiting(false);
@@ -311,31 +302,32 @@ const Index = () => {
       setIsPlayButtonActive(true);
       
       if (midiSequencerRef.current) {
+        // ПОЛУЧАЕМ ТЕКУЩУЮ СКОРОСТЬ из MIDI секвенсера
+        const currentSpeed = midiSequencerRef.current.getSpeed();
+        console.log(`🎵 Запуск с скоростью: ${currentSpeed}x`);
+        
         midiSequencerRef.current.registerPlaybackEndCallback(() => {
           setIsPlayButtonActive(false);
-          // Останавливаем подсветку при завершении воспроизведения
           stopNoteHighlight();
         });
         
         midiSequencerRef.current.handlePlay();
         
-        // Запускаем подсветку нот
-        startNoteHighlight();
+        // Запускаем подсветку нот С УЧЕТОМ СКОРОСТИ
+        startNoteHighlight(currentSpeed);
       }
-    }, 2000);
+    }, 2000); // ЗАДЕРЖКА 2 СЕКУНДЫ ОСТАЕТСЯ НЕИЗМЕННОЙ
   };
 
-  // Оптимизированная проверка изображений с таймаутом
   const checkImageExists = (path: string): Promise<boolean> => {
     return new Promise((resolve) => {
       const img = new Image();
       
-      // Устанавливаем таймаут для быстрой реакции
       const timeout = setTimeout(() => {
         resolve(false);
         img.onload = null;
         img.onerror = null;
-      }, 1000); // Увеличили таймаут до 1000мс
+      }, 1000);
 
       img.onload = () => {
         clearTimeout(timeout);
@@ -351,7 +343,6 @@ const Index = () => {
     });
   };
 
-  // Функция для получения всех доступных путей изображений для ноты
   const getAvailablePaths = async (note: Note): Promise<{ paths: string[], hasAlts: boolean }> => {
     const basePath = getBasePath();
     
@@ -362,13 +353,12 @@ const Index = () => {
     const imageName = getImageName(note);
     const instrumentPath = `${basePath}tabs/${instrument}/`;
     
-    // ВСЕГДА начинаем с префикса _1
     const initialPath = `${instrumentPath}${imageName}_1.png`;
     
     if (await checkImageExists(initialPath)) {
       return { 
-        paths: [initialPath], // Только _1 изначально
-        hasAlts: true // Предполагаем, что могут быть альтернативы
+        paths: [initialPath],
+        hasAlts: true
       };
     } else {
       console.log(`Изображение не найдено: ${initialPath}`);
@@ -376,7 +366,6 @@ const Index = () => {
     }
   };
 
-  // Эффект для инициализации путей изображений с параллельной загрузкой
   useEffect(() => {
     const initializeImagePaths = async () => {
       if (parsedNotes.length === 0) return;
@@ -386,16 +375,13 @@ const Index = () => {
       try {
         const newStates: Record<number, NoteImageState> = {};
         
-        // Создаем массив промисов для параллельной проверки
         const promises = parsedNotes.map(async (note, index) => {
           const { paths, hasAlts } = await getAvailablePaths(note);
           return { index, paths, hasAlts };
         });
         
-        // Ожидаем выполнения всех проверок
         const results = await Promise.all(promises);
         
-        // Формируем новое состояние
         results.forEach(({ index, paths, hasAlts }) => {
           newStates[index] = {
             currentIndex: 0,
@@ -417,7 +403,7 @@ const Index = () => {
 
   const handleImageClick = async (index: number) => {
     const note = parsedNotes[index];
-    if (note.pause) return; // Паузы не кликабельны
+    if (note.pause) return;
     
     const state = noteStates[index];
     if (!state) return;
@@ -426,27 +412,23 @@ const Index = () => {
     const baseName = getImageName(note);
     const instrumentPath = `${getBasePath()}tabs/${instrument}/`;
     
-    // Определяем текущий префикс и следующий
     const currentMatch = currentPath.match(/_(\d+)\.png$/);
     const currentPrefix = currentMatch ? parseInt(currentMatch[1]) : 1;
     const nextPrefix = currentPrefix + 1;
     
-    // Проверяем следующий префикс
     const nextPath = `${instrumentPath}${baseName}_${nextPrefix}.png`;
     
     if (await checkImageExists(nextPath)) {
-      // Переключаемся на следующий префикс
       setNoteStates(prev => ({
         ...prev,
         [index]: {
           ...state,
-          currentIndex: 0, // Всегда 0, т.к. у нас теперь один путь в массиве
-          availablePaths: [nextPath], // Заменяем массив на новый путь
+          currentIndex: 0,
+          availablePaths: [nextPath],
           hasAlts: true
         }
       }));
     } else {
-      // Возвращаемся к префиксу _1
       const firstPath = `${instrumentPath}${baseName}_1.png`;
       setNoteStates(prev => ({
         ...prev,
@@ -469,16 +451,14 @@ const Index = () => {
     return state.availablePaths[state.currentIndex];
   };
 
-  // Функция для получения пути к изображению ноты (из папки notes)
   const getNoteImagePath = (note: Note): string => {
     const basePath = getBasePath();
-    if (note.pause) return `${basePath}tabs/P.png`; // ИСПРАВЛЕНО: паузы из tabs/P.png
+    if (note.pause) return `${basePath}tabs/P.png`;
     
     const imageName = getImageName(note);
     return `${basePath}tabs/notes/${imageName}.png`;
   };
 
-  // Функция для получения пути к изображению табулатуры
   const getTabImagePath = (note: Note): string => {
     const basePath = getBasePath();
     if (note.pause) return `${basePath}tabs/P.png`;
@@ -487,7 +467,6 @@ const Index = () => {
     return `${basePath}tabs/${instrument}/${imageName}.png`;
   };
 
-  // Функция для принудительной перезагрузки изображений (только по кнопке)
   const refreshImages = async () => {
     if (parsedNotes.length === 0) return;
     
@@ -496,16 +475,13 @@ const Index = () => {
     try {
       const newStates: Record<number, NoteImageState> = {};
       
-      // Создаем массив промисов для параллельной проверки
       const promises = parsedNotes.map(async (note, index) => {
         const { paths, hasAlts } = await getAvailablePaths(note);
         return { index, paths, hasAlts };
       });
       
-      // Ожидаем выполнения всех проверок
       const results = await Promise.all(promises);
       
-      // Формируем новое состояние
       results.forEach(({ index, paths, hasAlts }) => {
         newStates[index] = {
           currentIndex: 0,
@@ -725,7 +701,6 @@ const Index = () => {
                   </div>
                 </div>
                 
-                {/* Диалог для ввода названия скриншота */}
                 {showScreenshotDialog && (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
@@ -769,10 +744,9 @@ const Index = () => {
                 >
                   {parsedNotes.map((note, index) => {
                     const noteImagePath = getNoteImagePath(note);
-                    const tabImagePath = getImagePath(index); // Используем getImagePath вместо getTabImagePath
+                    const tabImagePath = getImagePath(index);
                     const isClickable = !note.pause && (noteStates[index]?.hasAlts || false) && !isLoading;
                     
-                    // Проверяем, является ли эта нота текущей воспроизводимой
                     const isActive = currentPlayingNoteIndex === index;
 
                     return (
@@ -785,7 +759,6 @@ const Index = () => {
                           position: 'relative'
                         }}
                       >
-                        {/* Верхнее окошко - длительность */}
                         <div 
                           className="font-semibold rounded w-full text-center flex items-center justify-center"
                           style={{ 
@@ -793,18 +766,17 @@ const Index = () => {
                             padding: '2px 5px',
                             fontSize: `${Math.max(8, Math.min(16, imageSize * 0.12))}px`,
                             boxSizing: 'border-box',
-                            backgroundColor: isActive ? '#dcfce7' : '#f1f5f9', // Зеленый фон для активной ноты
+                            backgroundColor: isActive ? '#dcfce7' : '#f1f5f9',
                             zIndex: 10,
                             position: 'relative',
                             marginBottom: '15px',
-                            border: isActive ? '2px solid #22c55e' : '1px solid #e2e8f0', // Зеленая рамка для активной
+                            border: isActive ? '2px solid #22c55e' : '1px solid #e2e8f0',
                             transition: 'all 0.3s ease'
                           }}
                         >
                           {note.duration}
                         </div>
                         
-                        {/* Среднее окошко - картинка ноты */}
                         <div 
                           className="relative mb-2"
                           style={{ 
@@ -823,8 +795,8 @@ const Index = () => {
                               objectFit: "contain",
                               position: 'relative',
                               zIndex: 5,
-                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0', // Утолщенная зеленая рамка
-                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none', // Свечение для активной
+                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0',
+                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none',
                               transition: 'all 0.3s ease'
                             }}
                             onError={(e) => {
@@ -835,7 +807,6 @@ const Index = () => {
                           />
                         </div>
                         
-                        {/* Нижнее окошко - картинка табулатуры */}
                         <div 
                           className="relative"
                           style={{ 
@@ -855,8 +826,8 @@ const Index = () => {
                               position: 'relative',
                               zIndex: 5,
                               cursor: isClickable ? 'pointer' : 'default',
-                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0', // Утолщенная зеленая рамка
-                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none', // Свечение для активной
+                              border: isActive ? '3px solid #22c55e' : '2px solid #e2e8f0',
+                              boxShadow: isActive ? '0 0 10px rgba(34, 197, 94, 0.3)' : 'none',
                               transition: 'all 0.3s ease'
                             }}
                             onClick={() => {
@@ -880,7 +851,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Блок с ссылками и сносками */}
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6 mt-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-xl font-bold mb-4 text-center">Полезные ссылки</h3>
