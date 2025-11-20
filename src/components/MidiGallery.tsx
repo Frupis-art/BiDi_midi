@@ -19,17 +19,17 @@ export interface MidiFile {
   id: string;
   name: string;
   author: string;
-  sequences: [string, string];
+  sequences: string[]; // ИЗМЕНЕНИЕ: теперь массив строк вместо [string, string]
   createdAt: number;
 }
 
 interface MidiGalleryProps {
-  onLoadFile: (sequence1: string, sequence2: string) => void;
+  onLoadFile: (sequences: string[]) => void; // ИЗМЕНЕНИЕ: теперь принимаем массив
 }
 
 const MidiGallery = forwardRef<{ 
   setOpen: (open: boolean) => void;
-  uploadToGallery: (sequence1: string, sequence2: string, name: string, author: string) => Promise<MidiFile>;
+  uploadToGallery: (sequences: string[], name: string, author: string) => Promise<MidiFile>;
 }, MidiGalleryProps>(
   ({ onLoadFile }, ref) => {
     const [midiFiles, setMidiFiles] = useState<MidiFile[]>([]);
@@ -53,29 +53,32 @@ const MidiGallery = forwardRef<{
         
         try {
           // Проверка на пустые последовательности
-          if (!file.sequences[0] && !file.sequences[1]) {
+          if (file.sequences.length === 0 || file.sequences.every(seq => !seq.trim())) {
             toast.error('Файл не содержит данных');
             return;
           }
           
           // Генерируем MIDI из текстовых последовательностей
           const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
-          const parsedNotes1 = file.sequences[0] 
-            ? parseNoteSequence(file.sequences[0], (key: string) => key)
-            : [];
-          const parsedNotes2 = file.sequences[1] 
-            ? parseNoteSequence(file.sequences[1], (key: string) => key)
-            : [];
+          
+          // Парсим все последовательности
+          const parsedNotesArray = file.sequences.map(sequence => 
+            sequence ? parseNoteSequence(sequence, (key: string) => key) : []
+          );
+          
+          // Берем первые две последовательности для совместимости с exportMidi
+          const parsedNotes1 = parsedNotesArray[0] || [];
+          const parsedNotes2 = parsedNotesArray[1] || [];
           
           // Получаем Blob с MIDI данными
-        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
-          format: 'midi' as const
-        });
-        
-        if (!midiBlob) return;
-        
-        // Создаем URL для скачивания
-        const url = URL.createObjectURL(midiBlob);
+          const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
+            format: 'midi' as const
+          });
+          
+          if (!midiBlob) return;
+          
+          // Создаем URL для скачивания
+          const url = URL.createObjectURL(midiBlob);
           const link = document.createElement('a');
           link.href = url;
           link.download = `${safeFileName(file.name)}_${safeFileName(file.author)}.mid`;
@@ -145,11 +148,22 @@ const MidiGallery = forwardRef<{
           
           filesSnapshot.forEach((doc) => {
             const data = doc.data();
+            // ИЗМЕНЕНИЕ: обрабатываем как старые, так и новые форматы данных
+            let sequences: string[];
+            if (Array.isArray(data.sequences)) {
+              sequences = data.sequences;
+            } else if (data.sequences && Array.isArray(data.sequences) && data.sequences.length >= 2) {
+              // Старый формат [string, string] - преобразуем в массив
+              sequences = [data.sequences[0], data.sequences[1]];
+            } else {
+              sequences = [];
+            }
+            
             filesData.push({
               id: doc.id,
               name: data.name,
               author: data.author,
-              sequences: data.sequences,
+              sequences: sequences,
               createdAt: data.createdAt?.toMillis() || Date.now(),
             });
           });
@@ -170,8 +184,8 @@ const MidiGallery = forwardRef<{
       loadFiles();
     }, []);
 
-    // Загрузка файла в галерею (только текстовые последовательности)
-    const uploadToGallery = async (sequence1: string, sequence2: string, name: string, author: string) => {
+    // Загрузка файла в галерею (все последовательности)
+    const uploadToGallery = async (sequences: string[], name: string, author: string) => {
       // Проверки на длину
       if (name.length < 3 || name.length > 20) {
         throw new Error('Название должно быть от 3 до 20 символов');
@@ -182,11 +196,11 @@ const MidiGallery = forwardRef<{
       }
 
       try {
-        // Сохраняем только текстовые последовательности в Firebase
+        // Сохраняем все текстовые последовательности в Firebase
         const docRef = await addDoc(collection(db, 'midi_files'), {
           name,
           author,
-          sequences: [sequence1, sequence2],
+          sequences: sequences, // ИЗМЕНЕНИЕ: сохраняем все последовательности
           createdAt: serverTimestamp(),
         });
         
@@ -194,7 +208,7 @@ const MidiGallery = forwardRef<{
           id: docRef.id,
           name,
           author,
-          sequences: [sequence1, sequence2] as [string, string],
+          sequences: sequences,
           createdAt: Date.now(),
         };
         
@@ -222,7 +236,7 @@ const MidiGallery = forwardRef<{
     const handleLoadFile = (file: MidiFile) => {
       const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
       if (window.confirm(confirmMessage)) {
-        onLoadFile(file.sequences[0], file.sequences[1]);
+        onLoadFile(file.sequences); // ИЗМЕНЕНИЕ: передаем массив
         toast.success(`Загружен файл: ${file.name}_${file.author}_${file.id}`);
       }
     };
@@ -369,9 +383,9 @@ const MidiGallery = forwardRef<{
                       <div className="flex-1 min-w-0 px-1">
                         <span 
                           className="text-xs truncate block" 
-                          title={`${file.name} - ${file.author} (ID: ${file.id})`}
+                          title={`${file.name} - ${file.author} (${file.sequences.length} последовательностей)`}
                         >
-                          {file.name} - {file.author}
+                          {file.name} - {file.author} ({file.sequences.length})
                         </span>
                       </div>
                     </div>

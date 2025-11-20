@@ -75,6 +75,7 @@ const MidiSequencer = forwardRef<{
   const [galleryName, setGalleryName] = useState('');
   const [galleryAuthor, setGalleryAuthor] = useState('');
   const [deletedSequences, setDeletedSequences] = useState<SequenceData[]>([]);
+  const [showSaveHint, setShowSaveHint] = useState(false); // НОВОЕ: подсветка кнопки сохранения
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playbackEndCallbackRef = useRef<(() => void) | null>(null);
@@ -91,6 +92,15 @@ const MidiSequencer = forwardRef<{
     { value: 'violin', label: 'Скрипка' },
     { value: 'guitar', label: 'Гитара' }
   ];
+
+  // Показываем подсказку для кнопки сохранения
+  useEffect(() => {
+    if (hasValidSequence) {
+      setShowSaveHint(true);
+      const timer = setTimeout(() => setShowSaveHint(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasValidSequence]);
 
   // Добавление новой последовательности (с восстановлением из истории)
   const addSequence = () => {
@@ -407,6 +417,7 @@ const MidiSequencer = forwardRef<{
     playbackEndCallbackRef.current = callback;
   };
 
+  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: сохранение MIDI файла
   const handleSaveOption = async (format: 'midi' | 'mp3') => {
     if (!hasValidSequence) {
       toast.error(t('playbackError'));
@@ -414,18 +425,47 @@ const MidiSequencer = forwardRef<{
     }
 
     try {
-      // Передаем первые две последовательности в функцию экспорта для совместимости
-      const seq1 = sequences[0]?.parsedNotes || [];
-      const seq2 = sequences[1]?.parsedNotes || [];
-      
-      await exportMidi(seq1, seq2, speed[0], { format });
-      
-      const messages = {
-        midi: t('midiSaved'),
-        mp3: t('audioSaved')
-      };
-      
-      toast.success(messages[format]);
+      // Для MIDI используем новый подход
+      if (format === 'midi') {
+        // Берем строковые последовательности первых двух треков (для совместимости)
+        const sequence1 = sequences[0]?.sequence || '';
+        const sequence2 = sequences[1]?.sequence || '';
+
+        // Парсим их заново
+        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+        const parsedNotes1 = sequence1 ? parseNoteSequence(sequence1, t) : [];
+        const parsedNotes2 = sequence2 ? parseNoteSequence(sequence2, t) : [];
+
+        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, speed[0], { format: 'midi' });
+
+        if (!midiBlob) {
+          toast.error('Не удалось создать MIDI файл');
+          return;
+        }
+
+        // Скачиваем
+        const url = URL.createObjectURL(midiBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `composition_${Date.now()}.mid`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+
+        toast.success(t('midiSaved'));
+      } else {
+        // Для MP3 оставляем старый код
+        const seq1 = sequences[0]?.parsedNotes || [];
+        const seq2 = sequences[1]?.parsedNotes || [];
+        
+        await exportMidi(seq1, seq2, speed[0], { format });
+        toast.success(t('audioSaved'));
+      }
+
       setShowSaveDialog(false);
     } catch (error) {
       console.error('Export error:', error);
@@ -498,37 +538,21 @@ const MidiSequencer = forwardRef<{
     }
   };
 
-  // Функция загрузки файла из галереи - очищаем ВСЕ парсеры
-  const handleLoadFromGallery = (sequence1: string, sequence2: string) => {
+  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: загрузка файла из галереи - теперь принимает массив последовательностей
+  const handleLoadFromGallery = (sequences: string[]) => {
     // Создаем новые последовательности, полностью заменяя существующие
-    const newSequences: SequenceData[] = [];
+    const newSequences: SequenceData[] = sequences.map(sequence => ({
+      sequence: sequence,
+      parsedNotes: [],
+      selectedInstrument: 'piano',
+      isMuted: false,
+      isSolo: false,
+      volume: 0.7,
+      currentNoteIndex: -1
+    }));
     
-    if (sequence1) {
-      newSequences.push({
-        sequence: sequence1,
-        parsedNotes: [],
-        selectedInstrument: 'piano',
-        isMuted: false,
-        isSolo: false,
-        volume: 0.7,
-        currentNoteIndex: -1
-      });
-    }
-    
-    if (sequence2) {
-      newSequences.push({
-        sequence: sequence2,
-        parsedNotes: [],
-        selectedInstrument: 'piano',
-        isMuted: false,
-        isSolo: false,
-        volume: 0.7,
-        currentNoteIndex: -1
-      });
-    }
-    
-    // Если только одна последовательность, добавляем пустую вторую
-    while (newSequences.length < 2) {
+    // Если массив пустой, добавляем одну пустую последовательность
+    if (newSequences.length === 0) {
       newSequences.push({
         sequence: '',
         parsedNotes: [],
@@ -542,7 +566,7 @@ const MidiSequencer = forwardRef<{
     
     setSequences(newSequences);
     setDeletedSequences([]);
-    toast.success('Последовательности загружены из галереи');
+    toast.success(`Последовательности загружены из галереи (${sequences.length} шт.)`);
   };
 
   const renderSequenceWithHighlights = (notes: ParsedNote[], sequenceText: string, currentIndex: number) => {
@@ -566,7 +590,7 @@ const MidiSequencer = forwardRef<{
     });
   };
 
-  // Обработчик сохранения в галерею
+  // ИСПРАВЛЕННАЯ ФУНКЦИЯ: сохранение в галерею - теперь сохраняет ВСЕ последовательности
   const handleSaveToGallery = async () => {
     if (!galleryName.trim() || !galleryAuthor.trim()) {
       toast.error('Заполните все поля');
@@ -592,12 +616,11 @@ const MidiSequencer = forwardRef<{
     }
 
     try {
-      // Получаем последовательности
-      const sequence1 = sequences[0]?.sequence || '';
-      const sequence2 = sequences.length > 1 ? sequences[1]?.sequence : '';
+      // ИСПРАВЛЕНИЕ: получаем ВСЕ последовательности
+      const allSequences = sequences.map(seq => seq.sequence);
       
       // Вызываем метод загрузки из галереи
-      await midiGalleryRef.current?.uploadToGallery(sequence1, sequence2, galleryName, galleryAuthor);
+      await midiGalleryRef.current?.uploadToGallery(allSequences, galleryName, galleryAuthor);
       
       setGalleryName('');
       setGalleryAuthor('');
@@ -866,8 +889,11 @@ const MidiSequencer = forwardRef<{
               <DialogTrigger asChild>
                 <Button
                   disabled={!hasValidSequence}
-                  className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0"
+                  className={`flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full p-0 ${
+                    showSaveHint ? 'ring-2 ring-blue-500 animate-pulse' : ''
+                  }`}
                   variant="outline"
+                  title={t('save')}
                 >
                   <Save className="w-4 h-4" />
                 </Button>
