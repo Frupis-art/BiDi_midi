@@ -228,121 +228,112 @@ export const stopSequence = () => {
   scheduledEvents = [];
 };
 
-// Обновленная функция экспорта с поддержкой двух последовательностей
+// ОБНОВЛЕННАЯ ФУНКЦИЯ: экспорт с поддержкой неограниченного количества дорожек
 export const exportMidi = async (
-  notes1: ParsedNote[], 
-  notes2: ParsedNote[], 
+  allNotesArrays: ParsedNote[][], 
   speed: number = 1, 
   options?: { format: 'midi' | 'mp3' }
 ): Promise<Blob | void> => {
   const midi = new Midi();
   
-  // Создаем первый трек для первой последовательности
-  if (notes1.length > 0 && notes1.some(note => !note.isError && !note.isPause)) {
-    const track1 = midi.addTrack();
-    track1.name = "Sequence 1";
-    track1.channel = 0;
+  console.log(`🎹 Export MIDI: создаем ${allNotesArrays.length} дорожек`);
+  
+  // Создаем трек для каждой последовательности
+  allNotesArrays.forEach((notes, trackIndex) => {
+    if (notes.length > 0 && notes.some(note => !note.isError && !note.isPause)) {
+      const track = midi.addTrack();
+      track.name = `Track ${trackIndex + 1}`;
+      track.channel = trackIndex % 16; // MIDI поддерживает 16 каналов
 
-    let currentTime1 = 0;
-    notes1.forEach((note) => {
-      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-        const noteName = `${note.note}${note.octave}`;
-        const adjustedDuration = (note.duration / 1000) / speed;
-        track1.addNote({
-          midi: Tone.Frequency(noteName).toMidi(),
-          time: currentTime1 / 1000,
-          duration: adjustedDuration
-        });
-      }
-      currentTime1 += note.duration / speed;
-    });
-  }
-
-  // Создаем второй трек для второй последовательности
-  if (notes2.length > 0 && notes2.some(note => !note.isError && !note.isPause)) {
-    const track2 = midi.addTrack();
-    track2.name = "Sequence 2";
-    track2.channel = 1;
-
-    let currentTime2 = 0;
-    notes2.forEach((note) => {
-      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-        const noteName = `${note.note}${note.octave}`;
-        const adjustedDuration = (note.duration / 1000) / speed;
-        track2.addNote({
-          midi: Tone.Frequency(noteName).toMidi(),
-          time: currentTime2 / 1000,
-          duration: adjustedDuration
-        });
-      }
-      currentTime2 += note.duration / speed;
-    });
-  }
+      let currentTime = 0;
+      let noteCount = 0;
+      
+      notes.forEach((note) => {
+        if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+          const noteName = `${note.note}${note.octave}`;
+          const adjustedDuration = (note.duration / 1000) / speed;
+          
+          try {
+            track.addNote({
+              midi: Tone.Frequency(noteName).toMidi(),
+              time: currentTime / 1000,
+              duration: adjustedDuration
+            });
+            noteCount++;
+          } catch (error) {
+            console.warn(`⚠️ Не удалось добавить ноту ${noteName} в трек ${trackIndex + 1}:`, error);
+          }
+        }
+        currentTime += note.duration / speed;
+      });
+      
+      console.log(`🎵 Трек ${trackIndex + 1}: добавлено ${noteCount} нот`);
+    }
+  });
 
   if (options?.format === 'mp3') {
-    await convertToMp3(notes1, notes2, speed);
+    await convertToMp3(allNotesArrays, speed);
   } else {
     const midiArray = midi.toArray();
     return new Blob([midiArray], { type: 'audio/midi' });
   }
 };
 
-const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: number) => {
+// ОБНОВЛЕННАЯ ФУНКЦИЯ: конвертация в MP3/WAV с поддержкой неограниченного количества дорожек
+const convertToMp3 = async (allNotesArrays: ParsedNote[][], speed: number) => {
   const audioContext = new AudioContext();
   const sampleRate = audioContext.sampleRate;
   
   // Вычисляем общую длительность
-  let totalDuration1 = 0;
-  notes1.forEach(note => {
-    totalDuration1 += (note.duration / 1000) / speed;
+  let totalDuration = 0;
+  allNotesArrays.forEach(notes => {
+    let trackDuration = 0;
+    notes.forEach(note => {
+      trackDuration += (note.duration / 1000) / speed;
+    });
+    totalDuration = Math.max(totalDuration, trackDuration);
   });
   
-  let totalDuration2 = 0;
-  notes2.forEach(note => {
-    totalDuration2 += (note.duration / 1000) / speed;
-  });
-  
-  const totalDuration = Math.max(totalDuration1, totalDuration2);
   const bufferLength = Math.ceil(totalDuration * sampleRate);
   const audioBuffer = audioContext.createBuffer(2, bufferLength, sampleRate); // Стерео
   
-  // Первая последовательность в левый канал
-  const leftChannel = audioBuffer.getChannelData(0);
-  let currentTime1 = 0;
-  for (const note of notes1) {
-    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-      const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
-      const noteDuration = (note.duration / 1000) / speed;
-      const startSample = Math.floor((currentTime1 / 1000) * sampleRate);
-      const endSample = Math.floor(((currentTime1 / 1000) + noteDuration) * sampleRate);
-      
-      for (let i = startSample; i < endSample && i < bufferLength; i++) {
-        const t = (i - startSample) / sampleRate;
-        const envelope = Math.exp(-t * 2);
-        leftChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
-      }
-    }
-    currentTime1 += note.duration / speed;
-  }
+  console.log(`🎵 Export Audio: создаем аудио с ${allNotesArrays.length} дорожками, длительность ${totalDuration.toFixed(2)}с`);
   
-  // Вторая последовательность в правый канал
+  // Распределяем дорожки по каналам
+  const leftChannel = audioBuffer.getChannelData(0);
   const rightChannel = audioBuffer.getChannelData(1);
-  let currentTime2 = 0;
-  for (const note of notes2) {
-    if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
-      const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
-      const noteDuration = (note.duration / 1000) / speed;
-      const startSample = Math.floor((currentTime2 / 1000) * sampleRate);
-      const endSample = Math.floor(((currentTime2 / 1000) + noteDuration) * sampleRate);
-      
-      for (let i = startSample; i < endSample && i < bufferLength; i++) {
-        const t = (i - startSample) / sampleRate;
-        const envelope = Math.exp(-t * 2);
-        rightChannel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+  
+  allNotesArrays.forEach((notes, trackIndex) => {
+    let currentTime = 0;
+    let noteCount = 0;
+    
+    for (const note of notes) {
+      if (!note.isPause && !note.isError && note.note && note.octave !== undefined) {
+        try {
+          const frequency = Tone.Frequency(`${note.note}${note.octave}`).toFrequency();
+          const noteDuration = (note.duration / 1000) / speed;
+          const startSample = Math.floor((currentTime / 1000) * sampleRate);
+          const endSample = Math.floor(((currentTime / 1000) + noteDuration) * sampleRate);
+          
+          // Распределяем дорожки: четные - левый канал, нечетные - правый
+          const channel = trackIndex % 2 === 0 ? leftChannel : rightChannel;
+          
+          for (let i = startSample; i < endSample && i < bufferLength; i++) {
+            const t = (i - startSample) / sampleRate;
+            const envelope = Math.exp(-t * 2); // ADSR-подобная огибающая
+            channel[i] += Math.sin(2 * Math.PI * frequency * t) * envelope * 0.3;
+          }
+          
+          noteCount++;
+        } catch (error) {
+          console.warn(`⚠️ Не удалось обработать ноту в треке ${trackIndex + 1}:`, error);
+        }
       }
+      currentTime += note.duration / speed;
     }
-    currentTime2 += note.duration / speed;
-  }
+    
+    console.log(`🎵 Аудио трек ${trackIndex + 1}: обработано ${noteCount} нот`);
+  });
   
   const wavBlob = audioBufferToWav(audioBuffer);
   
@@ -352,21 +343,21 @@ const convertToMp3 = async (notes1: ParsedNote[], notes2: ParsedNote[], speed: n
   
   if (isTelegramWebApp) {
     // Специальная обработка для Telegram WebApp
-    downloadAudioFile(wavBlob, 'sequence', 'wav');
+    downloadAudioFile(wavBlob, 'composition', 'wav');
   } else if (isMobile && 'share' in navigator) {
     try {
-      const file = new File([wavBlob], 'sequence.wav', { type: 'audio/wav' });
+      const file = new File([wavBlob], 'composition.wav', { type: 'audio/wav' });
       await navigator.share({
         files: [file],
-        title: 'Audio Sequence',
-        text: 'Exported audio sequence'
+        title: 'Audio Composition',
+        text: 'Exported audio composition'
       });
     } catch (error) {
       console.error('Share failed:', error);
-      downloadAudioFile(wavBlob, 'sequence', 'wav');
+      downloadAudioFile(wavBlob, 'composition', 'wav');
     }
   } else {
-    downloadAudioFile(wavBlob, 'sequence', 'wav');
+    downloadAudioFile(wavBlob, 'composition', 'wav');
   }
 };
 

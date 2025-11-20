@@ -19,12 +19,12 @@ export interface MidiFile {
   id: string;
   name: string;
   author: string;
-  sequences: string[]; // ИЗМЕНЕНИЕ: теперь массив строк вместо [string, string]
+  sequences: string[];
   createdAt: number;
 }
 
 interface MidiGalleryProps {
-  onLoadFile: (sequences: string[]) => void; // ИЗМЕНЕНИЕ: теперь принимаем массив
+  onLoadFile: (sequences: string[]) => void;
 }
 
 const MidiGallery = forwardRef<{ 
@@ -38,71 +38,64 @@ const MidiGallery = forwardRef<{
     const [open, setOpen] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const isDownloadingRef = useRef(false); // ДОБАВЛЕНО: объявление isDownloadingRef
 
     // Функция для безопасного имени файла
     const safeFileName = (str: string) => 
       str.replace(/[^\wа-яА-Я\s]/gi, '').replace(/\s+/g, '_');
 
-    // Хук для обработки скачивания с защитой от множественных вызовов
-    const useDownloadHandler = () => {
-      const isDownloadingRef = useRef(false);
+    // ОБНОВЛЕННАЯ ФУНКЦИЯ: скачивание со ВСЕМИ дорожками
+    const handleDownloadFile = async (file: MidiFile) => {
+      if (isDownloadingRef.current) return;
+      isDownloadingRef.current = true;
       
-      return async (file: MidiFile) => {
-        if (isDownloadingRef.current) return;
-        isDownloadingRef.current = true;
-        
-        try {
-          // Проверка на пустые последовательности
-          if (file.sequences.length === 0 || file.sequences.every(seq => !seq.trim())) {
-            toast.error('Файл не содержит данных');
-            return;
-          }
-          
-          // Генерируем MIDI из текстовых последовательностей
-          const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
-          
-          // Парсим все последовательности
-          const parsedNotesArray = file.sequences.map(sequence => 
-            sequence ? parseNoteSequence(sequence, (key: string) => key) : []
-          );
-          
-          // Берем первые две последовательности для совместимости с exportMidi
-          const parsedNotes1 = parsedNotesArray[0] || [];
-          const parsedNotes2 = parsedNotesArray[1] || [];
-          
-          // Получаем Blob с MIDI данными
-          const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, 1, { 
-            format: 'midi' as const
-          });
-          
-          if (!midiBlob) return;
-          
-          // Создаем URL для скачивания
-          const url = URL.createObjectURL(midiBlob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${safeFileName(file.name)}_${safeFileName(file.author)}.mid`;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          
-          // Убираем ссылку после скачивания
-          setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-          }, 100);
-          
-          toast.success(`Скачивается: ${file.name}_${file.author}.mid`);
-        } catch (error) {
-          console.error('Ошибка при скачивании MIDI:', error);
-          toast.error('Ошибка при экспорте MIDI файла');
-        } finally {
-          isDownloadingRef.current = false;
+      try {
+        // Проверка на пустые последовательности
+        if (file.sequences.length === 0 || file.sequences.every(seq => !seq.trim())) {
+          toast.error('Файл не содержит данных');
+          return;
         }
-      };
+        
+        console.log(`💾 Скачивание из галереи: ${file.sequences.length} дорожек`);
+        
+        // Генерируем MIDI из ВСЕХ текстовых последовательностей
+        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+        
+        // Парсим ВСЕ последовательности
+        const allParsedNotes = file.sequences.map(sequence => 
+          sequence ? parseNoteSequence(sequence, (key: string) => key) : []
+        );
+        
+        // Получаем Blob с MIDI данными (передаем ВСЕ дорожки)
+        const midiBlob = await exportMidi(allParsedNotes, 1, { 
+          format: 'midi' as const
+        });
+        
+        if (!midiBlob) return;
+        
+        // Создаем URL для скачивания
+        const url = URL.createObjectURL(midiBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${safeFileName(file.name)}_${safeFileName(file.author)}.mid`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Убираем ссылку после скачивания
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        toast.success(`Скачивается: ${file.name}_${file.author}.mid (${file.sequences.length} дорожек)`);
+      } catch (error) {
+        console.error('Ошибка при скачивании MIDI:', error);
+        toast.error('Ошибка при экспорте MIDI файла');
+      } finally {
+        isDownloadingRef.current = false;
+      }
     };
-    
-    const handleDownloadFile = useDownloadHandler();
 
     // Проверка подключения к Firebase
     const checkFirebaseConnection = async () => {
@@ -148,7 +141,7 @@ const MidiGallery = forwardRef<{
           
           filesSnapshot.forEach((doc) => {
             const data = doc.data();
-            // ИЗМЕНЕНИЕ: обрабатываем как старые, так и новые форматы данных
+            // Обрабатываем как старые, так и новые форматы данных
             let sequences: string[];
             if (Array.isArray(data.sequences)) {
               sequences = data.sequences;
@@ -200,7 +193,7 @@ const MidiGallery = forwardRef<{
         const docRef = await addDoc(collection(db, 'midi_files'), {
           name,
           author,
-          sequences: sequences, // ИЗМЕНЕНИЕ: сохраняем все последовательности
+          sequences: sequences,
           createdAt: serverTimestamp(),
         });
         
@@ -236,7 +229,7 @@ const MidiGallery = forwardRef<{
     const handleLoadFile = (file: MidiFile) => {
       const confirmMessage = 'Текущие последовательности будут очищены. Продолжить?';
       if (window.confirm(confirmMessage)) {
-        onLoadFile(file.sequences); // ИЗМЕНЕНИЕ: передаем массив
+        onLoadFile(file.sequences);
         toast.success(`Загружен файл: ${file.name}_${file.author}_${file.id}`);
       }
     };

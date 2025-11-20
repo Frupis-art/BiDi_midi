@@ -418,60 +418,66 @@ const MidiSequencer = forwardRef<{
   };
 
   // ИСПРАВЛЕННАЯ ФУНКЦИЯ: сохранение MIDI файла
-  const handleSaveOption = async (format: 'midi' | 'mp3') => {
-    if (!hasValidSequence) {
-      toast.error(t('playbackError'));
-      return;
-    }
+ // ОБНОВЛЕННАЯ ФУНКЦИЯ: сохранение со ВСЕМИ дорожками
+const handleSaveOption = async (format: 'midi' | 'mp3') => {
+  if (!hasValidSequence) {
+    toast.error(t('playbackError'));
+    return;
+  }
 
-    try {
-      // Для MIDI используем новый подход
-      if (format === 'midi') {
-        // Берем строковые последовательности первых двух треков (для совместимости)
-        const sequence1 = sequences[0]?.sequence || '';
-        const sequence2 = sequences[1]?.sequence || '';
+  try {
+    // Для MIDI используем новый подход со ВСЕМИ дорожками
+    if (format === 'midi') {
+      // Берем ВСЕ последовательности
+      const allSequences = sequences.map(seq => seq.sequence);
+      
+      // Парсим ВСЕ последовательности
+      const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
+      const allParsedNotes = allSequences.map(sequence => 
+        sequence ? parseNoteSequence(sequence, t) : []
+      );
 
-        // Парсим их заново
-        const { parseNoteSequence, exportMidi } = await import('@/utils/midiUtils');
-        const parsedNotes1 = sequence1 ? parseNoteSequence(sequence1, t) : [];
-        const parsedNotes2 = sequence2 ? parseNoteSequence(sequence2, t) : [];
+      console.log(`💾 Сохранение MIDI: ${allParsedNotes.length} дорожек`);
 
-        const midiBlob = await exportMidi(parsedNotes1, parsedNotes2, speed[0], { format: 'midi' });
+      // Создаем MIDI со ВСЕМИ дорожками
+      const midiBlob = await exportMidi(allParsedNotes, speed[0], { format: 'midi' });
 
-        if (!midiBlob) {
-          toast.error('Не удалось создать MIDI файл');
-          return;
-        }
-
-        // Скачиваем
-        const url = URL.createObjectURL(midiBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `composition_${Date.now()}.mid`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }, 100);
-
-        toast.success(t('midiSaved'));
-      } else {
-        // Для MP3 оставляем старый код
-        const seq1 = sequences[0]?.parsedNotes || [];
-        const seq2 = sequences[1]?.parsedNotes || [];
-        
-        await exportMidi(seq1, seq2, speed[0], { format });
-        toast.success(t('audioSaved'));
+      if (!midiBlob) {
+        toast.error('Не удалось создать MIDI файл');
+        return;
       }
 
-      setShowSaveDialog(false);
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error(t('saveError'));
+      // Скачиваем
+      const url = URL.createObjectURL(midiBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `composition_${Date.now()}.mid`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+
+      toast.success(`${t('midiSaved')} (${allParsedNotes.length} дорожек)`);
+    } else {
+      // Для MP3 также используем ВСЕ дорожки
+      const allParsedNotes = sequences.map(seq => seq.parsedNotes);
+      
+      console.log(`💾 Сохранение Audio: ${allParsedNotes.length} дорожек`);
+
+      // Передаем массив всех дорожек в exportMidi
+      await exportMidi(allParsedNotes, speed[0], { format });
+      toast.success(`${t('audioSaved')} (${allParsedNotes.length} дорожек)`);
     }
-  };
+
+    setShowSaveDialog(false);
+  } catch (error) {
+    console.error('Export error:', error);
+    toast.error(t('saveError'));
+  }
+};
 
   const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
